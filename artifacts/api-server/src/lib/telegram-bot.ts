@@ -209,15 +209,16 @@ function buildStatsMessage(total: string, displayed: string, otps: number, sessi
 // ─── Main Export ──────────────────────────────────────────────────────────────
 export function startTelegramBot(): void {
   const token    = process.env["TELEGRAM_BOT_TOKEN"];
-  const chatId   = process.env["TELEGRAM_CHAT_ID"];
   const ownerRaw = process.env["OWNER_CHAT_ID"];
 
-  if (!token || !chatId || !ownerRaw) {
-    logger.warn("TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID or OWNER_CHAT_ID not set — bot disabled");
+  if (!token || !ownerRaw) {
+    logger.warn("TELEGRAM_BOT_TOKEN or OWNER_CHAT_ID not set — bot disabled");
     return;
   }
 
   const ownerId = Number(ownerRaw);
+  // Send all SMS/OTP alerts to the owner's private chat
+  const chatId = ownerRaw;
   const bot = new TelegramBot(token, { polling: true });
 
   // Pre-approve the owner
