@@ -76,8 +76,41 @@ function extractOtp(text: string): string | null {
   return null;
 }
 
-function formatTime(ts: string) {
-  return ts.replace("T", " ").substring(0, 19);
+// Parse API timestamp safely (handles both space and T separator)
+function parseTs(ts: string): Date {
+  return new Date(ts.replace(" ", "T"));
+}
+
+// "11:08 AM" — just the time portion
+function formatClock(ts: string): string {
+  const d = parseTs(ts);
+  if (isNaN(d.getTime())) return ts.substring(11, 16);
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true });
+}
+
+// "Apr 2" — just the date portion (short)
+function formatDate(ts: string): string {
+  const d = parseTs(ts);
+  if (isNaN(d.getTime())) return ts.substring(0, 10);
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+// "2m ago" / "just now"
+function timeAgo(ts: string): string {
+  const diff = Math.floor((Date.now() - parseTs(ts).getTime()) / 1000);
+  if (diff < 30) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+// Hook: re-render every 30s so relative times stay fresh
+function useNow() {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 30000);
+    return () => clearInterval(id);
+  }, []);
 }
 
 function OtpBadge({ otp }: { otp: string }) {
@@ -156,6 +189,7 @@ function StatCard({ label, value, icon, gradient, iconColor, textColor }: {
 }
 
 export default function App() {
+  useNow(); // keeps relative timestamps fresh
   const { stats, error } = useStats();
   const [filter, setFilter] = useState<"all" | "otp" | "sms">("all");
   const [newIds, setNewIds] = useState<Set<number>>(new Set());
@@ -205,14 +239,14 @@ export default function App() {
             </div>
             <div>
               <div className="text-sm font-bold tracking-tight text-white">SMS Monitor</div>
-              <div className="text-[9px] tracking-[0.2em] uppercase font-medium" style={{ color: "rgba(139,92,246,0.7)" }}>Telegram Bot</div>
+              <div className="text-[9px] tracking-[0.2em] uppercase font-medium" style={{ color: "rgba(139,92,246,0.7)" }}>Zone SMS</div>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
             {stats && (
               <span className="text-[10px] text-white/20 hidden sm:block">
-                {formatTime(stats.lastUpdated)}
+                updated {timeAgo(stats.lastUpdated)}
               </span>
             )}
             <div className={`flex items-center gap-2 text-[11px] font-semibold px-3 py-1.5 rounded-full border ${
@@ -336,9 +370,11 @@ export default function App() {
                           <span className="text-white/15">·</span>
                           <span className="text-xs font-mono font-semibold text-white/70">{row.phone}</span>
                           <span className="text-white/15">·</span>
-                          <span className="text-[11px] text-white/25">{formatTime(row.timestamp)}</span>
+                          <span className="text-[11px] text-white/40 font-medium tabular-nums">{formatClock(row.timestamp)}</span>
                           <span className="text-white/10">·</span>
-                          <span className="text-[10px] text-white/20">{row.sim}</span>
+                          <span className="text-[10px] text-white/20">{formatDate(row.timestamp)}</span>
+                          <span className="text-white/10">·</span>
+                          <span className="text-[10px] text-white/15">{timeAgo(row.timestamp)}</span>
                         </div>
 
                         {/* OTP code badge — tap to copy */}
