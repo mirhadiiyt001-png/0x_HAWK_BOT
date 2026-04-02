@@ -106,11 +106,11 @@ function timeAgo(ts: string): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-// Hook: re-render every 30s so relative times stay fresh
+// Hook: re-render every 10s so relative times stay fresh
 function useNow() {
   const [, setTick] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 30000);
+    const id = setInterval(() => setTick((t) => t + 1), 10000);
     return () => clearInterval(id);
   }, []);
 }
@@ -368,7 +368,7 @@ export default function App() {
                       {/* Content */}
                       <div className="flex-1 min-w-0">
 
-                        {/* Row 1: type tag + phone + time */}
+                        {/* Row 1: type tag + phone + live time badge */}
                         <div className="flex items-center justify-between gap-2 mb-2">
                           <div className="flex items-center gap-2 min-w-0">
                             <span className={`text-[9px] font-extrabold uppercase tracking-[0.18em] px-1.5 py-0.5 rounded-md ${
@@ -380,12 +380,19 @@ export default function App() {
                             </span>
                             <span className="text-[13px] font-semibold font-mono text-white/80 truncate">{row.phone}</span>
                           </div>
-                          <div className="flex items-center gap-1.5 shrink-0 text-[11px] text-white/35">
-                            <span className="font-medium tabular-nums">{formatClock(row.timestamp)}</span>
-                            <span className="text-white/15">·</span>
-                            <span>{formatDate(row.timestamp)}</span>
-                            <span className="text-white/10">·</span>
-                            <span className="text-white/20">{timeAgo(row.timestamp)}</span>
+                          {/* Live time — matches navbar "updated just now" style */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-white/[0.07]"
+                              style={{ background: "rgba(255,255,255,0.03)" }}>
+                              <span className="w-1 h-1 rounded-full bg-emerald-400/60 shrink-0"
+                                style={{ animation: "pulse 2.5s ease-in-out infinite" }} />
+                              <span className="text-[10px] font-medium text-white/40 tabular-nums">
+                                {timeAgo(row.timestamp)}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-white/20 font-mono tabular-nums hidden sm:block">
+                              {formatClock(row.timestamp)} · {formatDate(row.timestamp)}
+                            </span>
                           </div>
                         </div>
 
