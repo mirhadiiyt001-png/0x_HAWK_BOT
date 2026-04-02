@@ -19,12 +19,14 @@ router.get("/sms-stats", async (req, res) => {
     const rows = data.aaData ?? [];
 
     // Count OTPs
-    const otpKeywords = ["otp", "verification code", "verify", "code", "رمز", "کد", "pin", "auth", "passcode"];
+    const otpKeywords = ["otp", "verification code", "verify", "code", "رمز", "کد", "pin", "auth", "passcode", "пароль", "код", "senha", "doğrulama"];
     let otpCount = 0;
     const recent = rows.slice(0, 10).map((row) => {
       const arr = row as unknown[];
       const body = String(arr[7] ?? "");
-      const isOtp = otpKeywords.some((kw) => body.toLowerCase().includes(kw));
+      const hasKeyword = otpKeywords.some((kw) => body.toLowerCase().includes(kw));
+      const has6digit = /(?<!\d)\d{6}(?!\d)/.test(body);
+      const isOtp = hasKeyword || has6digit;
       if (isOtp) otpCount++;
       return {
         timestamp: String(arr[0] ?? ""),

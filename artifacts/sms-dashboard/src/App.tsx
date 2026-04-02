@@ -46,12 +46,13 @@ function useStats() {
 
 function extractOtp(text: string): string | null {
   const patterns = [
-    /(?:OTP|code|verification|verify|pin)[^0-9]*(\d{4,8})/i,
+    /(?:OTP|otp|code|رمز|کد|verification|verify|confirm|auth|pin|passcode|пароль|код|senha)[^0-9]*(\d{4,8})/i,
+    /(\d{4,8})[^0-9]*(?:OTP|otp|code|کد|رمز|verify|confirm|пароль|код)/i,
     /(?:is|:|-|=)\s*(\d{6})\b/,
-    /\s(\d{6})\s/,
+    /(?<!\d)(\d{6})(?!\d)/,
+    /(?<!\d)(\d{4})(?!\d)/,
     /^(\d{6})\b/,
-    /\b([0-9]{6})\b/,
-    /\b([0-9]{4})\b/,
+    /^(\d{4})\b/,
   ];
   for (const p of patterns) {
     const m = text.match(p);

@@ -54,12 +54,18 @@ function parseSmsRow(row: unknown[]): SmsMessage {
 
 function extractOtp(text: string): string | null {
   const patterns = [
-    /(?:OTP|otp|code|رمز|کد|verification|verify|confirm|auth|pin|passcode)[^0-9]*(\d{4,8})/i,
-    /(\d{4,8})[^0-9]*(?:OTP|otp|code|کد|رمز|verification|verify|confirm)/i,
+    // Keyword before digit
+    /(?:OTP|otp|code|رمز|کد|verification|verify|confirm|auth|pin|passcode|пароль|код|senha|doğrulama|mã)[^0-9]*(\d{4,8})/i,
+    // Digit before keyword
+    /(\d{4,8})[^0-9]*(?:OTP|otp|code|کد|رمز|verification|verify|confirm|пароль|код)/i,
+    // After is/:/=/-
     /(?:is|:|-|=)\s*(\d{6})\b/,
     /(?:is|:|-|=)\s*(\d{4})\b/,
-    /\s(\d{6})\s/,
-    /\s(\d{4})\s/,
+    // Standalone 6-digit number (most reliable OTP length)
+    /(?<!\d)(\d{6})(?!\d)/,
+    // Standalone 4-digit number
+    /(?<!\d)(\d{4})(?!\d)/,
+    // Start of message
     /^(\d{6})\b/,
     /^(\d{4})\b/,
   ];
@@ -75,9 +81,22 @@ function isOtpMessage(text: string): boolean {
     "otp", "one-time", "one time", "verification code", "verify", "confirm",
     "رمز", "کد", "تأیید", "code", "passcode", "pin",
     "authentication", "auth", "token", "secret",
+    // Russian
+    "пароль", "код", "подтвержд",
+    // Turkish
+    "doğrulama", "şifre",
+    // Portuguese
+    "senha", "verificação",
+    // Vietnamese
+    "mã xác", "ma xac",
   ];
   const lower = text.toLowerCase();
-  return keywords.some((kw) => lower.includes(kw));
+  if (keywords.some((kw) => lower.includes(kw))) return true;
+
+  // Fallback: standalone 6-digit number = very likely OTP
+  if (/(?<!\d)\d{6}(?!\d)/.test(text)) return true;
+
+  return false;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -315,41 +334,32 @@ export function startTelegramBot(): void {
 
       if (data.startsWith("otp:")) {
         const otp = data.replace("otp:", "");
-        await bot.answerCallbackQuery(query.id, { text: `✅ OTP: ${otp}`, show_alert: true });
-        await bot.sendMessage(cid,
-          `🔑  <b>OTP CODE</b>\n` +
-          `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
-          `<code>${escapeHtml(otp)}</code>\n` +
-          `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
-          `⬆️  <i>Tap the code above to copy it</i>`,
-          { parse_mode: "HTML" }
-        );
+        // Show popup only — no new message sent to group
+        await bot.answerCallbackQuery(query.id, {
+          text: `🔑 OTP Code:\n\n${otp}\n\nHold & copy the number above`,
+          show_alert: true,
+        });
 
       } else if (data.startsWith("num:")) {
         const num = data.replace("num:", "");
-        await bot.answerCallbackQuery(query.id, { text: `✅ Number: ${num}`, show_alert: true });
-        await bot.sendMessage(cid,
-          `📱  <b>PHONE NUMBER</b>\n` +
-          `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
-          `<code>${escapeHtml(num)}</code>\n` +
-          `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
-          `⬆️  <i>Tap the number above to copy it</i>`,
-          { parse_mode: "HTML" }
-        );
+        // Show popup only — no new message sent to group
+        await bot.answerCallbackQuery(query.id, {
+          text: `📱 Phone Number:\n\n${num}\n\nHold & copy the number above`,
+          show_alert: true,
+        });
 
       } else if (data.startsWith("msg:")) {
         const storeId = data.replace("msg:", "");
         const sms = messageStore.get(storeId);
-        await bot.answerCallbackQuery(query.id, { text: "✅ Message shown below", show_alert: false });
         if (sms) {
-          await bot.sendMessage(cid,
-            `💬  <b>FULL MESSAGE</b>\n` +
-            `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
-            `<code>${escapeHtml(sms.body)}</code>\n` +
-            `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
-            `⬆️  <i>Tap the text above to copy it</i>`,
-            { parse_mode: "HTML" }
-          );
+          // Trim message if too long for alert (Telegram limit ~200 chars)
+          const preview = sms.body.length > 180 ? sms.body.substring(0, 180) + "…" : sms.body;
+          await bot.answerCallbackQuery(query.id, {
+            text: `💬 Message:\n\n${preview}\n\nHold & copy text above`,
+            show_alert: true,
+          });
+        } else {
+          await bot.answerCallbackQuery(query.id, { text: "⚠️ Message expired from cache", show_alert: true });
         }
 
       } else if (data === "refresh_stats") {
