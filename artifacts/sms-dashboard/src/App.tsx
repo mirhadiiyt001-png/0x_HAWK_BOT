@@ -247,9 +247,14 @@ export default function App() {
 
           <div className="flex items-center gap-3">
             {stats && (
-              <span className="text-[10px] text-white/20 hidden sm:block">
-                updated {timeAgo(stats.lastUpdated)}
-              </span>
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/10"
+                style={{ background: "rgba(255,255,255,0.05)" }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-400/70 shrink-0"
+                  style={{ animation: "pulse 2.5s ease-in-out infinite" }} />
+                <span className="text-[10px] font-medium text-white/55 whitespace-nowrap">
+                  updated {timeAgo(stats.lastUpdated)}
+                </span>
+              </div>
             )}
             <div className={`flex items-center gap-2 text-[11px] font-semibold px-3 py-1.5 rounded-full border ${
               error
