@@ -205,19 +205,39 @@ function buildStatsMessage(total: string, displayed: string, otps: number, sessi
 }
 
 // ─── Main Export ──────────────────────────────────────────────────────────────
-export function startTelegramBot(): void {
+// webhookUrl: pass the public HTTPS URL in production (e.g. https://app.replit.app/api/telegram-webhook)
+//             leave undefined in development — bot will use polling instead
+export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
   const token    = process.env["TELEGRAM_BOT_TOKEN"];
   const ownerRaw = process.env["OWNER_CHAT_ID"];
 
   if (!token || !ownerRaw) {
     logger.warn("TELEGRAM_BOT_TOKEN or OWNER_CHAT_ID not set — bot disabled");
-    return;
+    return null;
   }
 
   const ownerId = Number(ownerRaw);
   // Send all SMS/OTP alerts to the owner's private chat
   const chatId = ownerRaw;
-  const bot = new TelegramBot(token, { polling: true });
+
+  let bot: TelegramBot;
+
+  if (webhookUrl) {
+    // ── PRODUCTION: webhook mode (no polling — no 409 conflict) ──
+    bot = new TelegramBot(token, { webHook: false });
+    bot.setWebHook(webhookUrl)
+      .then(() => logger.info({ webhookUrl }, "Telegram webhook registered"))
+      .catch((e) => logger.error({ e }, "Failed to set webhook"));
+  } else {
+    // ── DEVELOPMENT: polling mode (delete any stale webhook first) ──
+    bot = new TelegramBot(token, { polling: false });
+    bot.deleteWebHook({ drop_pending_updates: true })
+      .then(() => {
+        bot.startPolling();
+        logger.info("Polling started (dev mode)");
+      })
+      .catch((e) => logger.error({ e }, "Failed to delete webhook"));
+  }
 
   // Pre-approve the owner
   approvedUsers.add(ownerId);
@@ -591,4 +611,6 @@ export function startTelegramBot(): void {
 
   poll();
   setInterval(poll, POLL_INTERVAL);
+
+  return bot;
 }

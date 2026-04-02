@@ -23,5 +23,33 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
-  startTelegramBot();
+
+  const isProduction = process.env["NODE_ENV"] === "production";
+
+  if (isProduction) {
+    // In production, use Telegram webhooks — no polling, no 409 conflict
+    // REPLIT_DOMAINS contains the deployed domain e.g. "myapp.replit.app"
+    const domains = process.env["REPLIT_DOMAINS"] ?? "";
+    const primaryDomain = domains.split(",")[0]?.trim();
+
+    if (primaryDomain) {
+      const webhookUrl = `https://${primaryDomain}/api/telegram-webhook`;
+      const bot = startTelegramBot(webhookUrl);
+
+      if (bot) {
+        // Register the webhook endpoint so Express can receive Telegram updates
+        app.post("/api/telegram-webhook", (req, res) => {
+          bot.processUpdate(req.body as Parameters<typeof bot.processUpdate>[0]);
+          res.sendStatus(200);
+        });
+        logger.info({ webhookUrl }, "Telegram webhook endpoint registered");
+      }
+    } else {
+      logger.warn("REPLIT_DOMAINS not set — falling back to polling in production");
+      startTelegramBot();
+    }
+  } else {
+    // In development, use polling (deletes any stale webhook first)
+    startTelegramBot();
+  }
 });
