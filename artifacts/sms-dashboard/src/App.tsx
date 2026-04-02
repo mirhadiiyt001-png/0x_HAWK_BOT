@@ -80,6 +80,40 @@ function formatTime(ts: string) {
   return ts.replace("T", " ").substring(0, 19);
 }
 
+function OtpBadge({ otp }: { otp: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(otp);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <button onClick={copy} title="Tap to copy OTP"
+      className="inline-flex items-center gap-3 mb-2.5 px-3.5 py-2 rounded-xl border transition-all duration-200 cursor-pointer active:scale-95"
+      style={copied
+        ? { background: "linear-gradient(135deg, rgba(52,211,153,0.15), rgba(16,185,129,0.08))", borderColor: "rgba(52,211,153,0.3)", boxShadow: "0 0 20px rgba(52,211,153,0.12)" }
+        : { background: "linear-gradient(135deg, rgba(139,92,246,0.12), rgba(99,102,241,0.06))", borderColor: "rgba(139,92,246,0.2)", boxShadow: "0 0 20px rgba(139,92,246,0.08)" }
+      }>
+      {copied ? (
+        <>
+          <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-emerald-400/70">Copied</span>
+          <svg className="w-4 h-4 text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
+          </svg>
+        </>
+      ) : (
+        <>
+          <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-violet-400/60">OTP</span>
+          <span className="text-xl font-bold tracking-[0.25em] font-mono text-violet-200">{otp}</span>
+          <svg className="w-3.5 h-3.5 text-violet-400/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+          </svg>
+        </>
+      )}
+    </button>
+  );
+}
+
 function CopyBtn({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
   const [state, setState] = useState<"idle" | "copied">("idle");
   const copy = () => {
@@ -307,14 +341,8 @@ export default function App() {
                           <span className="text-[10px] text-white/20">{row.sim}</span>
                         </div>
 
-                        {/* OTP code badge */}
-                        {otp && (
-                          <div className="inline-flex items-center gap-3 mb-2.5 px-3.5 py-2 rounded-xl border border-violet-400/20"
-                            style={{ background: "linear-gradient(135deg, rgba(139,92,246,0.12), rgba(99,102,241,0.06))", boxShadow: "0 0 20px rgba(139,92,246,0.08)" }}>
-                            <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-violet-400/60">OTP</span>
-                            <span className="text-xl font-bold tracking-[0.25em] font-mono text-violet-200">{otp}</span>
-                          </div>
-                        )}
+                        {/* OTP code badge — tap to copy */}
+                        {otp && <OtpBadge otp={otp} />}
 
                         <p className="text-[12px] text-white/35 leading-relaxed break-all line-clamp-2">{row.body}</p>
                         <div className="flex items-center gap-1.5 mt-1.5 text-[10px] text-white/15">

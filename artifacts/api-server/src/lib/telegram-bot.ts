@@ -155,12 +155,17 @@ function formatSmsMessage(sms: SmsMessage): string {
 }
 
 function buildOtpKeyboard(sms: SmsMessage, storeId: string): TelegramBot.InlineKeyboardMarkup {
-  // OTP is already tappable as a <code> block in the message — no duplicate button needed
+  const otp = extractOtp(sms.body)!;
   return {
-    inline_keyboard: [[
-      { text: `📱 Copy Number`, callback_data: safeCallbackData("num:", sms.phone) },
-      { text: `💬 Copy Message`, callback_data: `msg:${storeId}` },
-    ]],
+    inline_keyboard: [
+      [
+        { text: `🔑 Copy OTP`, callback_data: safeCallbackData("otp:", otp) },
+        { text: `📱 Copy Number`, callback_data: safeCallbackData("num:", sms.phone) },
+      ],
+      [
+        { text: `💬 Copy Message`, callback_data: `msg:${storeId}` },
+      ],
+    ],
   };
 }
 
@@ -241,6 +246,15 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
 
   // Pre-approve the owner
   approvedUsers.add(ownerId);
+
+  // Register commands so Telegram shows them when user types /
+  bot.setMyCommands([
+    { command: "start",  description: "Welcome & activate access" },
+    { command: "stats",  description: "Live SMS & OTP statistics" },
+    { command: "status", description: "System health check" },
+    { command: "help",   description: "Command reference & guide" },
+    { command: "users",  description: "Manage users (owner only)" },
+  ]).catch((e) => logger.warn({ e }, "setMyCommands failed"));
 
   // Timestamp-based dedup — survives restarts cleanly
   let latestSeenTimestamp = "";          // newest timestamp at startup
