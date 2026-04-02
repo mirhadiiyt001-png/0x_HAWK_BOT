@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "SMS Monitor Dashboard"
+version = "1.0.0"
+id = "artifacts/sms-dashboard"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21002
+
+[services.development]
+run = "pnpm --filter @workspace/sms-dashboard run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/sms-dashboard", "run", "build" ]
+publicDir = "artifacts/sms-dashboard/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21002"
+BASE_PATH = "/"
