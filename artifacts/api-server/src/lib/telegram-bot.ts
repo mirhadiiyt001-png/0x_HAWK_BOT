@@ -184,6 +184,24 @@ function makeMessageKey(sms: SmsMessage): string {
   return `${sms.timestamp}|${sms.phone}|${sms.body.substring(0, 40)}`;
 }
 
+// Secondary dedup: phone + normalized body, expires after 90 seconds
+// Prevents same SMS body from being forwarded twice even if timestamps differ slightly
+const recentBodyMap = new Map<string, number>(); // key → sentAt ms
+function isBodyDuplicate(sms: SmsMessage): boolean {
+  const key = `${sms.phone}|${sms.body.trim()}`;
+  const now = Date.now();
+  const last = recentBodyMap.get(key);
+  if (last && now - last < 90_000) return true;
+  recentBodyMap.set(key, now);
+  // Cleanup old entries periodically
+  if (recentBodyMap.size > 500) {
+    for (const [k, t] of recentBodyMap) {
+      if (now - t > 90_000) recentBodyMap.delete(k);
+    }
+  }
+  return false;
+}
+
 function isValidSms(sms: SmsMessage): boolean {
   // Phone must look like a real number (≥5 digits, not "0")
   if (!sms.phone || !/^\+?\d{5,}$/.test(sms.phone.trim())) return false;
@@ -588,6 +606,12 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
       }
 
       for (const sms of newMessages.reverse()) {
+        // Skip if exact same body from same phone was sent in last 90 seconds
+        if (isBodyDuplicate(sms)) {
+          logger.info({ phone: sms.phone }, "Skipped duplicate SMS body");
+          continue;
+        }
+
         totalSmsToday++;
         const storeId = storeMessage(sms);
         const hasOtp = isOtpMessage(sms.body);

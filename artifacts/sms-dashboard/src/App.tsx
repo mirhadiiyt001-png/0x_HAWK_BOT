@@ -76,9 +76,11 @@ function extractOtp(text: string): string | null {
   return null;
 }
 
-// Parse API timestamp safely (handles both space and T separator)
+// Parse API timestamp as UTC (API timestamps have no timezone marker — treat as UTC)
 function parseTs(ts: string): Date {
-  return new Date(ts.replace(" ", "T"));
+  // Append "Z" so browser treats it as UTC, then displays in user's local timezone
+  const normalized = ts.replace(" ", "T");
+  return new Date(normalized.endsWith("Z") ? normalized : normalized + "Z");
 }
 
 // "11:08 AM" — just the time portion
@@ -382,6 +384,8 @@ export default function App() {
 
                         <p className="text-[12px] text-white/35 leading-relaxed break-all line-clamp-2">{row.body}</p>
                         <div className="flex items-center gap-1.5 mt-1.5 text-[10px] text-white/15">
+                          <span>{row.sim}</span>
+                          <span>·</span>
                           <span>{row.device}</span>
                           <span>·</span>
                           <span>{row.plan}</span>
