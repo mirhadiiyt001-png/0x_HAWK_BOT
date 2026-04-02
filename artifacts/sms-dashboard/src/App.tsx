@@ -452,9 +452,12 @@ export default function App() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-[10px] text-white/10 pb-2 tracking-wide">
-          Auto-refresh every 5s · SMS Monitor · Powered by Telegram
-        </p>
+        <div className="flex items-center justify-center gap-1.5 pb-4 pt-1">
+          <span className="text-[11px] text-white/35 tracking-wide font-medium">
+            Auto-refresh every 5s · SMS Monitor · Powered by Shadow Logic
+          </span>
+          <span className="text-sm">🚀</span>
+        </div>
       </main>
 
       <style>{`
