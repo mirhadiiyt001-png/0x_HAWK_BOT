@@ -155,15 +155,12 @@ function formatSmsMessage(sms: SmsMessage): string {
 }
 
 function buildOtpKeyboard(sms: SmsMessage, storeId: string): TelegramBot.InlineKeyboardMarkup {
-  const otp = extractOtp(sms.body)!;
+  // OTP is already tappable as a <code> block in the message — no duplicate button needed
   return {
-    inline_keyboard: [
-      [{ text: `🔑 Copy OTP: ${otp}`, callback_data: safeCallbackData("otp:", otp) }],
-      [
-        { text: `📱 Copy Number`, callback_data: safeCallbackData("num:", sms.phone) },
-        { text: `💬 Copy Message`, callback_data: `msg:${storeId}` },
-      ],
-    ],
+    inline_keyboard: [[
+      { text: `📱 Copy Number`, callback_data: safeCallbackData("num:", sms.phone) },
+      { text: `💬 Copy Message`, callback_data: `msg:${storeId}` },
+    ]],
   };
 }
 
@@ -183,11 +180,12 @@ function makeMessageKey(sms: SmsMessage): string {
 }
 
 function isValidSms(sms: SmsMessage): boolean {
-  // Skip malformed/summary rows — real messages have a proper phone number and body
-  if (!sms.phone || sms.phone === "0" || sms.phone.trim() === "") return false;
-  if (!sms.body  || sms.body  === "0" || sms.body.trim()  === "") return false;
-  // Phone must be at least 5 digits (not just "0" or "00" etc.)
-  if (!/\d{4,}/.test(sms.phone)) return false;
+  // Phone must look like a real number (≥5 digits, not "0")
+  if (!sms.phone || !/^\+?\d{5,}$/.test(sms.phone.trim())) return false;
+  // Body must be non-empty and not the literal "0"
+  if (!sms.body || sms.body.trim() === "" || sms.body.trim() === "0") return false;
+  // Timestamp must look like an ISO date (e.g. 2026-04-02T07:19:57)
+  if (!sms.timestamp || !/^\d{4}-\d{2}-\d{2}/.test(sms.timestamp)) return false;
   return true;
 }
 
@@ -224,7 +222,9 @@ export function startTelegramBot(): void {
   // Pre-approve the owner
   approvedUsers.add(ownerId);
 
-  const seenMessages = new Set<string>();
+  // Timestamp-based dedup — survives restarts cleanly
+  let latestSeenTimestamp = "";          // newest timestamp at startup
+  const seenKeys = new Set<string>();    // secondary dedup for same-timestamp messages
   let isFirstRun = true;
   let otpCount = 0;
   let totalSmsToday = 0;
@@ -520,27 +520,37 @@ export function startTelegramBot(): void {
       const res = await fetch(API_URL);
       const data = (await res.json()) as ApiResponse;
       const rows = data.aaData ?? [];
-      const total = data.iTotalRecords ?? "0";
 
       if (isFirstRun) {
+        // Record the newest timestamp from current API state.
+        // Only messages arriving AFTER this point will be forwarded — restart-safe.
         for (const row of rows) {
           const sms = parseSmsRow(row);
-          if (isValidSms(sms)) seenMessages.add(makeMessageKey(sms));
+          if (!isValidSms(sms)) continue;
+          if (sms.timestamp > latestSeenTimestamp) latestSeenTimestamp = sms.timestamp;
+          seenKeys.add(makeMessageKey(sms));
         }
         isFirstRun = false;
-        logger.info({ count: rows.length }, "SMS cache initialized — monitoring for new messages");
+        logger.info({ latestSeenTimestamp, count: rows.length }, "SMS cache initialized");
         return;
       }
 
       const newMessages: SmsMessage[] = [];
       for (const row of rows) {
         const sms = parseSmsRow(row);
-        if (!isValidSms(sms)) continue; // skip garbage/summary rows
+        if (!isValidSms(sms)) continue;
+        // Primary guard: skip anything not strictly newer than startup baseline
+        if (sms.timestamp <= latestSeenTimestamp) continue;
+        // Secondary guard: exact-key dedup (handles same-second messages)
         const key = makeMessageKey(sms);
-        if (!seenMessages.has(key)) {
-          seenMessages.add(key);
-          newMessages.push(sms);
-        }
+        if (seenKeys.has(key)) continue;
+        seenKeys.add(key);
+        newMessages.push(sms);
+      }
+
+      // Advance the timestamp baseline so next restart is also safe
+      for (const sms of newMessages) {
+        if (sms.timestamp > latestSeenTimestamp) latestSeenTimestamp = sms.timestamp;
       }
 
       for (const sms of newMessages.reverse()) {
