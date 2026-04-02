@@ -605,6 +605,14 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
         if (sms.timestamp > latestSeenTimestamp) latestSeenTimestamp = sms.timestamp;
       }
 
+      // Only forward to Telegram from production.
+      // When both dev workspace and deployed production are running simultaneously,
+      // this prevents every SMS from being sent twice.
+      // To enable forwarding in dev, set FORWARD_SMS=true in environment.
+      const forwardEnabled =
+        process.env.NODE_ENV === "production" ||
+        process.env.FORWARD_SMS === "true";
+
       for (const sms of newMessages.reverse()) {
         // Skip if exact same body from same phone was sent in last 90 seconds
         if (isBodyDuplicate(sms)) {
@@ -616,6 +624,12 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
         const storeId = storeMessage(sms);
         const hasOtp = isOtpMessage(sms.body);
         const otp = extractOtp(sms.body);
+
+        if (!forwardEnabled) {
+          logger.info({ phone: sms.phone }, "Dev mode: SMS tracked (not forwarded — set FORWARD_SMS=true to enable)");
+          if (hasOtp) otpCount++;
+          continue;
+        }
 
         try {
           if (hasOtp && otp) {
