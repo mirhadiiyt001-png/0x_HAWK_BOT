@@ -330,30 +330,41 @@ export function startTelegramBot(): void {
 
       if (data.startsWith("otp:")) {
         const otp = data.replace("otp:", "");
-        // Show popup only — no new message sent to group
-        await bot.answerCallbackQuery(query.id, {
-          text: `🔑 OTP Code:\n\n${otp}\n\nHold & copy the number above`,
-          show_alert: true,
-        });
+        await bot.answerCallbackQuery(query.id, { text: "🔑 OTP sent to your private chat — tap to copy!", show_alert: false });
+        await bot.sendMessage(actorId,
+          `🔑  <b>OTP CODE</b>\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `<code>${escapeHtml(otp)}</code>\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `⬆️  <i>Tap the code above to copy instantly</i>`,
+          { parse_mode: "HTML" }
+        );
 
       } else if (data.startsWith("num:")) {
         const num = data.replace("num:", "");
-        // Show popup only — no new message sent to group
-        await bot.answerCallbackQuery(query.id, {
-          text: `📱 Phone Number:\n\n${num}\n\nHold & copy the number above`,
-          show_alert: true,
-        });
+        await bot.answerCallbackQuery(query.id, { text: "📱 Number sent to your private chat — tap to copy!", show_alert: false });
+        await bot.sendMessage(actorId,
+          `📱  <b>PHONE NUMBER</b>\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `<code>${escapeHtml(num)}</code>\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `⬆️  <i>Tap the number above to copy instantly</i>`,
+          { parse_mode: "HTML" }
+        );
 
       } else if (data.startsWith("msg:")) {
         const storeId = data.replace("msg:", "");
         const sms = messageStore.get(storeId);
         if (sms) {
-          // Trim message if too long for alert (Telegram limit ~200 chars)
-          const preview = sms.body.length > 180 ? sms.body.substring(0, 180) + "…" : sms.body;
-          await bot.answerCallbackQuery(query.id, {
-            text: `💬 Message:\n\n${preview}\n\nHold & copy text above`,
-            show_alert: true,
-          });
+          await bot.answerCallbackQuery(query.id, { text: "💬 Message sent to your private chat — tap to copy!", show_alert: false });
+          await bot.sendMessage(actorId,
+            `💬  <b>FULL MESSAGE</b>\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `<code>${escapeHtml(sms.body)}</code>\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `⬆️  <i>Tap the text above to copy instantly</i>`,
+            { parse_mode: "HTML" }
+          );
         } else {
           await bot.answerCallbackQuery(query.id, { text: "⚠️ Message expired from cache", show_alert: true });
         }
