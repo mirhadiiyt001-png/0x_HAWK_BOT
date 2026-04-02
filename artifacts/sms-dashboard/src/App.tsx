@@ -338,26 +338,28 @@ export default function App() {
                 const otp = row.isOtp ? extractOtp(row.body) : null;
                 const isNew = newIds.has(i);
                 return (
-                  <div key={i} className={`group relative px-5 py-4 transition-all duration-500 ${
-                    isNew ? "bg-violet-500/[0.06]" : "hover:bg-white/[0.02]"
+                  <div key={i} className={`group relative px-5 py-4 transition-all duration-300 ${
+                    isNew ? "bg-violet-500/[0.05]" : "hover:bg-white/[0.015]"
                   }`}>
-                    {isNew && <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-violet-400 rounded-r" />}
-                    <div className="flex items-start gap-3.5">
+                    {isNew && <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-r" style={{ background: "linear-gradient(to bottom, #a78bfa, #818cf8)" }} />}
 
-                      {/* Type icon */}
-                      <div className={`mt-0.5 w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
+                    <div className="flex items-start gap-3.5">
+                      {/* Type icon pill */}
+                      <div className={`mt-0.5 w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-200 ${
                         row.isOtp
-                          ? "border-violet-500/20 text-violet-400"
-                          : "border-blue-500/15 text-blue-400"
+                          ? "border-violet-500/25 text-violet-300"
+                          : "border-blue-500/20 text-blue-300"
                       }`} style={{
-                        background: row.isOtp ? "rgba(139,92,246,0.1)" : "rgba(59,130,246,0.08)"
+                        background: row.isOtp
+                          ? "linear-gradient(135deg, rgba(139,92,246,0.15), rgba(99,102,241,0.08))"
+                          : "linear-gradient(135deg, rgba(59,130,246,0.12), rgba(37,99,235,0.06))"
                       }}>
                         {row.isOtp ? (
-                          <svg style={{width:15,height:15}} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <svg style={{width:14,height:14}} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"/>
                           </svg>
                         ) : (
-                          <svg style={{width:15,height:15}} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <svg style={{width:14,height:14}} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/>
                           </svg>
                         )}
@@ -365,34 +367,65 @@ export default function App() {
 
                       {/* Content */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mb-2">
-                          <span className={`text-[10px] font-bold uppercase tracking-widest ${row.isOtp ? "text-violet-400" : "text-blue-400"}`}>
-                            {row.isOtp ? "OTP" : "SMS"}
-                          </span>
-                          <span className="text-white/15">·</span>
-                          <span className="text-xs font-mono font-semibold text-white/70">{row.phone}</span>
-                          <span className="text-white/15">·</span>
-                          <span className="text-[11px] text-white/40 font-medium tabular-nums">{formatClock(row.timestamp)}</span>
-                          <span className="text-white/10">·</span>
-                          <span className="text-[10px] text-white/20">{formatDate(row.timestamp)}</span>
-                          <span className="text-white/10">·</span>
-                          <span className="text-[10px] text-white/15">{timeAgo(row.timestamp)}</span>
+
+                        {/* Row 1: type tag + phone + time */}
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`text-[9px] font-extrabold uppercase tracking-[0.18em] px-1.5 py-0.5 rounded-md ${
+                              row.isOtp
+                                ? "text-violet-300 bg-violet-500/15 border border-violet-500/20"
+                                : "text-blue-300 bg-blue-500/12 border border-blue-500/15"
+                            }`}>
+                              {row.isOtp ? "OTP" : "SMS"}
+                            </span>
+                            <span className="text-[13px] font-semibold font-mono text-white/80 truncate">{row.phone}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0 text-[11px] text-white/35">
+                            <span className="font-medium tabular-nums">{formatClock(row.timestamp)}</span>
+                            <span className="text-white/15">·</span>
+                            <span>{formatDate(row.timestamp)}</span>
+                            <span className="text-white/10">·</span>
+                            <span className="text-white/20">{timeAgo(row.timestamp)}</span>
+                          </div>
                         </div>
 
-                        {/* OTP code badge — tap to copy */}
+                        {/* OTP clickable badge */}
                         {otp && <OtpBadge otp={otp} />}
 
-                        <p className="text-[12px] text-white/35 leading-relaxed break-all line-clamp-2">{row.body}</p>
-                        <div className="flex items-center gap-1.5 mt-1.5 text-[10px] text-white/15">
-                          <span>{row.sim}</span>
-                          <span>·</span>
-                          <span>{row.device}</span>
-                          <span>·</span>
-                          <span>{row.plan}</span>
+                        {/* Message body */}
+                        <p className="text-[12px] text-white/30 leading-relaxed break-all line-clamp-2 mb-2.5">{row.body}</p>
+
+                        {/* Metadata chips */}
+                        <div className="flex items-center flex-wrap gap-1.5">
+                          {/* SIM chip */}
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md border border-white/[0.08] text-white/40"
+                            style={{ background: "rgba(255,255,255,0.04)" }}>
+                            <svg style={{width:9,height:9}} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5z"/>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z"/>
+                            </svg>
+                            {row.sim}
+                          </span>
+                          {/* Device chip */}
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md border border-white/[0.08] text-white/40"
+                            style={{ background: "rgba(255,255,255,0.04)" }}>
+                            <svg style={{width:9,height:9}} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 15h3"/>
+                            </svg>
+                            {row.device}
+                          </span>
+                          {/* Plan chip */}
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md border border-emerald-500/[0.15] text-emerald-400/60"
+                            style={{ background: "rgba(52,211,153,0.04)" }}>
+                            <svg style={{width:9,height:9}} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z"/>
+                            </svg>
+                            {row.plan}
+                          </span>
                         </div>
                       </div>
 
-                      {/* Copy actions — appear on hover */}
+                      {/* Hover copy actions */}
                       <div className="flex flex-col gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-1 group-hover:translate-x-0">
                         {otp && <CopyBtn label="Copy OTP" value={otp} accent />}
                         <CopyBtn label="Number" value={row.phone} />
