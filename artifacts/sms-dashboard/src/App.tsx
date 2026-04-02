@@ -23,6 +23,7 @@ interface Stats {
 function useStats() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState(false);
+  const [tick, setTick] = useState(0);
 
   const fetchStats = async () => {
     try {
@@ -30,6 +31,7 @@ function useStats() {
       if (!res.ok) throw new Error("Failed");
       setStats(await res.json());
       setError(false);
+      setTick((t) => t + 1);
     } catch {
       setError(true);
     }
@@ -41,7 +43,7 @@ function useStats() {
     return () => clearInterval(id);
   }, []);
 
-  return { stats, error };
+  return { stats, error, tick };
 }
 
 function extractOtp(text: string): string | null {
@@ -51,8 +53,6 @@ function extractOtp(text: string): string | null {
     /(?:is|:|-|=)\s*(\d{6})\b/,
     /(?<!\d)(\d{6})(?!\d)/,
     /(?<!\d)(\d{4})(?!\d)/,
-    /^(\d{6})\b/,
-    /^(\d{4})\b/,
   ];
   for (const p of patterns) {
     const m = text.match(p);
@@ -61,141 +61,238 @@ function extractOtp(text: string): string | null {
   return null;
 }
 
+function timeAgo(ts: string): string {
+  const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  return `${Math.floor(diff / 3600)}h ago`;
+}
+
 function formatTime(ts: string) {
   return ts.replace("T", " ").substring(0, 19);
 }
 
-function Pulse() {
+function CopyButton({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
   return (
-    <span className="relative inline-flex h-2.5 w-2.5">
-      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-    </span>
+    <button
+      onClick={copy}
+      className={`flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 rounded-lg border transition-all duration-200 ${
+        copied
+          ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-400"
+          : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white/70"
+      }`}
+    >
+      {copied ? (
+        <>
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          Copied
+        </>
+      ) : (
+        <>
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <rect x="9" y="9" width="13" height="13" rx="2" />
+            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+          </svg>
+          {label}
+        </>
+      )}
+    </button>
   );
 }
 
 export default function App() {
   const { stats, error } = useStats();
-  const [copied, setCopied] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"all" | "otp" | "sms">("all");
 
-  const copy = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(text);
-    setTimeout(() => setCopied(null), 2000);
-  };
+  const filtered = (stats?.recent ?? []).filter((r) =>
+    filter === "all" ? true : filter === "otp" ? r.isOtp : !r.isOtp
+  );
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white font-sans">
-      {/* Header */}
-      <header className="border-b border-white/5 bg-[#0d0d14]">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-[#07070d] text-white" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
+
+      {/* ── Top Nav ── */}
+      <nav className="sticky top-0 z-50 border-b border-white/[0.06] bg-[#07070d]/90 backdrop-blur-xl">
+        <div className="max-w-4xl mx-auto px-5 h-14 flex items-center justify-between">
+          {/* Logo */}
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-lg">
-              🛰
+            <div className="relative w-8 h-8">
+              <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 opacity-20 blur-sm" />
+              <div className="relative w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500/80 to-indigo-600/80 flex items-center justify-center border border-violet-400/20">
+                <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z" />
+                </svg>
+              </div>
             </div>
             <div>
-              <h1 className="text-base font-semibold tracking-tight">SMS Monitor</h1>
-              <p className="text-xs text-white/40">Telegram Bot Dashboard</p>
+              <div className="text-sm font-semibold tracking-tight text-white">SMS Monitor</div>
+              <div className="text-[10px] text-white/30 -mt-0.5 tracking-wide uppercase">Telegram Bot</div>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-xs font-medium">
-            {error ? (
-              <span className="flex items-center gap-1.5 text-red-400">
-                <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
-                API Error
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5 text-emerald-400">
-                <Pulse />
-                Live
-              </span>
-            )}
-            <span className="text-white/20">·</span>
-            <span className="text-white/40">Refresh every 5s</span>
+
+          {/* Status pill */}
+          <div className={`flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full border ${
+            error
+              ? "bg-red-500/10 border-red-500/20 text-red-400"
+              : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${error ? "bg-red-400" : "bg-emerald-400 animate-pulse"}`} />
+            {error ? "Offline" : "Live"}
           </div>
         </div>
-      </header>
+      </nav>
 
-      <main className="max-w-5xl mx-auto px-4 py-8 space-y-6">
-        {/* Stat Cards */}
-        <div className="grid grid-cols-3 gap-4">
+      <main className="max-w-4xl mx-auto px-5 py-8 space-y-6">
+
+        {/* ── Stat Cards ── */}
+        <div className="grid grid-cols-3 gap-3">
           {[
             {
-              icon: "📩",
               label: "Total SMS",
               value: stats?.totalRecords ?? "—",
-              color: "from-blue-500/10 to-indigo-500/10 border-blue-500/20",
-              text: "text-blue-400",
+              icon: (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                </svg>
+              ),
+              accent: "from-blue-500/[0.08] to-blue-600/[0.04] border-blue-500/[0.12]",
+              iconBg: "bg-blue-500/15 text-blue-400",
+              textColor: "text-blue-300",
             },
             {
-              icon: "🔐",
               label: "OTPs Detected",
               value: stats?.otpCount != null ? String(stats.otpCount) : "—",
-              color: "from-violet-500/10 to-purple-500/10 border-violet-500/20",
-              text: "text-violet-400",
+              icon: (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+                </svg>
+              ),
+              accent: "from-violet-500/[0.08] to-violet-600/[0.04] border-violet-500/[0.12]",
+              iconBg: "bg-violet-500/15 text-violet-400",
+              textColor: "text-violet-300",
             },
             {
-              icon: "🤖",
               label: "Bot Status",
               value: error ? "Offline" : "Online",
-              color: error
-                ? "from-red-500/10 to-red-500/10 border-red-500/20"
-                : "from-emerald-500/10 to-teal-500/10 border-emerald-500/20",
-              text: error ? "text-red-400" : "text-emerald-400",
+              icon: (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z" />
+                </svg>
+              ),
+              accent: error
+                ? "from-red-500/[0.08] to-red-600/[0.04] border-red-500/[0.12]"
+                : "from-emerald-500/[0.08] to-emerald-600/[0.04] border-emerald-500/[0.12]",
+              iconBg: error ? "bg-red-500/15 text-red-400" : "bg-emerald-500/15 text-emerald-400",
+              textColor: error ? "text-red-300" : "text-emerald-300",
             },
           ].map((card) => (
-            <div
-              key={card.label}
-              className={`rounded-2xl border bg-gradient-to-br ${card.color} p-5`}
-            >
-              <div className="text-2xl mb-2">{card.icon}</div>
-              <div className={`text-2xl font-bold ${card.text}`}>{card.value}</div>
-              <div className="text-xs text-white/40 mt-1">{card.label}</div>
+            <div key={card.label} className={`rounded-2xl border bg-gradient-to-br ${card.accent} p-4`}>
+              <div className={`w-8 h-8 rounded-lg ${card.iconBg} flex items-center justify-center mb-3`}>
+                {card.icon}
+              </div>
+              <div className={`text-2xl font-bold tracking-tight ${card.textColor}`}>{card.value}</div>
+              <div className="text-xs text-white/30 mt-0.5">{card.label}</div>
             </div>
           ))}
         </div>
 
-        {/* Recent SMS */}
-        <div className="rounded-2xl border border-white/5 bg-[#0d0d14] overflow-hidden">
-          <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-white/80">Recent Messages</h2>
-            {stats?.lastUpdated && (
-              <span className="text-xs text-white/25">
-                Updated {formatTime(stats.lastUpdated)}
-              </span>
-            )}
+        {/* ── Messages Feed ── */}
+        <div className="rounded-2xl border border-white/[0.06] bg-[#0c0c15] overflow-hidden">
+          {/* Header */}
+          <div className="px-5 py-4 border-b border-white/[0.06] flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <h2 className="text-sm font-semibold text-white/80">Recent Messages</h2>
+              {stats && (
+                <span className="text-[10px] text-white/20">
+                  updated {formatTime(stats.lastUpdated)}
+                </span>
+              )}
+            </div>
+
+            {/* Filter tabs */}
+            <div className="flex items-center gap-1 bg-white/[0.04] rounded-lg p-1">
+              {(["all", "otp", "sms"] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={`text-[11px] font-medium px-2.5 py-1 rounded-md transition-all ${
+                    filter === f
+                      ? "bg-white/10 text-white"
+                      : "text-white/30 hover:text-white/50"
+                  }`}
+                >
+                  {f === "all" ? "All" : f === "otp" ? "⚡ OTP" : "📨 SMS"}
+                </button>
+              ))}
+            </div>
           </div>
 
+          {/* List */}
           {!stats ? (
-            <div className="p-8 text-center text-white/20 text-sm">Loading...</div>
-          ) : stats.recent.length === 0 ? (
-            <div className="p-8 text-center text-white/20 text-sm">No messages yet</div>
+            <div className="flex items-center justify-center py-16 gap-2 text-white/20 text-sm">
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              Loading...
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="py-16 text-center text-white/20 text-sm">No messages yet</div>
           ) : (
-            <div className="divide-y divide-white/5">
-              {stats.recent.map((row, i) => {
+            <div className="divide-y divide-white/[0.04]">
+              {filtered.map((row, i) => {
                 const otp = row.isOtp ? extractOtp(row.body) : null;
                 return (
-                  <div key={i} className="px-5 py-4 hover:bg-white/[0.02] transition-colors">
-                    <div className="flex items-start justify-between gap-3">
+                  <div key={i} className="px-5 py-4 hover:bg-white/[0.02] transition-colors group">
+                    <div className="flex items-start gap-4">
+                      {/* Icon */}
+                      <div className={`mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                        row.isOtp ? "bg-violet-500/15" : "bg-blue-500/10"
+                      }`}>
+                        {row.isOtp ? (
+                          <svg className="w-3.5 h-3.5 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-3.5 h-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                          </svg>
+                        )}
+                      </div>
+
+                      {/* Content */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1.5">
-                          {row.isOtp ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-400 border border-violet-500/20">
-                              ⚡ OTP
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/15">
-                              📨 SMS
-                            </span>
-                          )}
-                          <span className="text-xs font-mono text-white/50">{row.phone}</span>
-                          <span className="text-white/15">·</span>
-                          <span className="text-xs text-white/25">{formatTime(row.timestamp)}</span>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-[10px] font-semibold uppercase tracking-wider ${
+                            row.isOtp ? "text-violet-400" : "text-blue-400"
+                          }`}>
+                            {row.isOtp ? "OTP" : "SMS"}
+                          </span>
+                          <span className="text-white/20">·</span>
+                          <span className="text-xs font-mono text-white/60">{row.phone}</span>
+                          <span className="text-white/20">·</span>
+                          <span className="text-[11px] text-white/25">{formatTime(row.timestamp)}</span>
                         </div>
-                        <p className="text-sm text-white/60 break-all leading-relaxed line-clamp-2">
-                          {row.body}
-                        </p>
-                        <div className="flex items-center gap-2 mt-2 text-[11px] text-white/25">
+
+                        {/* OTP highlight */}
+                        {otp && (
+                          <div className="mb-2 inline-flex items-center gap-2 bg-violet-500/10 border border-violet-500/20 rounded-lg px-3 py-1.5">
+                            <span className="text-[10px] text-violet-400/70 font-medium uppercase tracking-wider">OTP</span>
+                            <span className="text-lg font-bold text-violet-300 tracking-widest font-mono">{otp}</span>
+                          </div>
+                        )}
+
+                        <p className="text-[13px] text-white/40 leading-relaxed break-all line-clamp-2">{row.body}</p>
+
+                        <div className="flex items-center gap-1.5 mt-1 text-[10px] text-white/20">
                           <span>{row.sim}</span>
                           <span>·</span>
                           <span>{row.device}</span>
@@ -204,22 +301,11 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Copy buttons */}
-                      <div className="flex flex-col gap-1.5 shrink-0">
-                        {otp && (
-                          <button
-                            onClick={() => copy(otp)}
-                            className="text-[11px] font-mono px-3 py-1.5 rounded-lg bg-violet-500/15 hover:bg-violet-500/25 text-violet-300 border border-violet-500/20 transition-colors flex items-center gap-1.5"
-                          >
-                            {copied === otp ? "✓ Copied" : `🔑 ${otp}`}
-                          </button>
-                        )}
-                        <button
-                          onClick={() => copy(row.phone)}
-                          className="text-[11px] font-mono px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/50 border border-white/8 transition-colors"
-                        >
-                          {copied === row.phone ? "✓ Copied" : "📱 Number"}
-                        </button>
+                      {/* Actions */}
+                      <div className="flex flex-col gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {otp && <CopyButton label="OTP" value={otp} />}
+                        <CopyButton label="Number" value={row.phone} />
+                        <CopyButton label="Message" value={row.body} />
                       </div>
                     </div>
                   </div>
@@ -229,44 +315,9 @@ export default function App() {
           )}
         </div>
 
-        {/* Bot Info */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="rounded-2xl border border-white/5 bg-[#0d0d14] p-5">
-            <h3 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-3">Bot Features</h3>
-            <ul className="space-y-2.5">
-              {[
-                ["🔄", "Auto-refresh every 5 seconds"],
-                ["🔐", "OTP auto-detection"],
-                ["📋", "One-tap copy (OTP, Number, Message)"],
-                ["📊", "Live statistics via /stats"],
-                ["🌐", "Multi-language SMS support"],
-                ["🔒", "Owner approval system"],
-              ].map(([icon, text]) => (
-                <li key={text} className="flex items-center gap-2.5 text-sm text-white/60">
-                  <span className="text-base">{icon}</span>
-                  <span>{text}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="rounded-2xl border border-white/5 bg-[#0d0d14] p-5">
-            <h3 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-3">Bot Commands</h3>
-            <ul className="space-y-2.5">
-              {[
-                ["/start", "Welcome & activate access"],
-                ["/stats", "Live SMS & OTP statistics"],
-                ["/status", "System health check"],
-                ["/help", "Command reference"],
-                ["/users", "Manage users (owner only)"],
-              ].map(([cmd, desc]) => (
-                <li key={cmd} className="flex items-start gap-2.5 text-sm">
-                  <code className="text-violet-400 font-mono text-xs bg-violet-500/10 px-1.5 py-0.5 rounded shrink-0 mt-0.5">{cmd}</code>
-                  <span className="text-white/50">{desc}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+        {/* ── Footer ── */}
+        <div className="text-center text-[11px] text-white/15 pb-4">
+          Auto-refreshes every 5 seconds · SMS Monitor Bot
         </div>
       </main>
     </div>
