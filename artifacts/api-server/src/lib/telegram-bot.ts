@@ -15,6 +15,13 @@ interface SmsMessage {
   body: string;
 }
 
+interface ApiResponse {
+  iTotalRecords: string;
+  iTotalDisplayRecords: string;
+  aaData: unknown[][];
+  sEcho: number;
+}
+
 function parseSmsRow(row: unknown[]): SmsMessage {
   return {
     timestamp: String(row[0] ?? ""),
@@ -30,15 +37,16 @@ function parseSmsRow(row: unknown[]): SmsMessage {
 
 function extractOtp(text: string): string | null {
   const patterns = [
-    /\b(\d{4,8})\b(?=.*(?:OTP|otp|code|kode|رمز|کد|verification|verify|confirm|auth))/i,
-    /(?:OTP|code|kode|رمز|کد|verification|verify|confirm|auth)[^0-9]*(\d{4,8})/i,
-    /(?:is|:|-|=)\s*(\d{4,8})\b/i,
+    /(?:OTP|otp|code|kode|رمز|کد|verification|verify|confirm|auth|pin|password|passcode)[^0-9]*(\d{4,8})/i,
+    /(\d{4,8})[^0-9]*(?:OTP|otp|code|کد|رمز|verification|verify|confirm)/i,
+    /(?:is|:|-|=|\s)\s*(\d{6})\b/,
+    /(?:is|:|-|=|\s)\s*(\d{4})\b/,
     /\b([0-9]{6})\b/,
     /\b([0-9]{4})\b/,
   ];
   for (const pattern of patterns) {
     const match = text.match(pattern);
-    if (match) return match[1];
+    if (match && match[1]) return match[1];
   }
   return null;
 }
@@ -47,72 +55,94 @@ function isOtpMessage(text: string): boolean {
   const keywords = [
     "otp", "one-time", "one time", "verification code", "verify", "confirm",
     "رمز", "کد", "تأیید", "code", "passcode", "password", "pin",
-    "authentication", "auth", "token",
+    "authentication", "auth", "token", "secret",
   ];
   const lower = text.toLowerCase();
-  return keywords.some((kw) => lower.includes(kw)) || /\b\d{4,8}\b/.test(text);
+  return keywords.some((kw) => lower.includes(kw));
 }
 
-function formatSmsMessage(sms: SmsMessage, totalRecords: string): string {
-  const otp = extractOtp(sms.body);
-  const hasOtp = isOtpMessage(sms.body);
-  const statusIcon = sms.status === 0 ? "✅" : "⚠️";
-  const timeStr = sms.timestamp.replace("T", " ").substring(0, 19);
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
-  if (hasOtp && otp) {
-    return (
-      `🔐 *OTP MESSAGE RECEIVED*\n` +
-      `━━━━━━━━━━━━━━━━━━━━━\n` +
-      `📱 *Phone:* \`${sms.phone}\`\n` +
-      `🕐 *Time:* ${timeStr}\n` +
-      `📡 *SIM:* ${sms.sim}\n` +
-      `📲 *Device:* ${sms.device}\n` +
-      `💳 *Plan:* ${sms.plan}\n` +
-      `━━━━━━━━━━━━━━━━━━━━━\n` +
-      `📩 *Message:*\n${sms.body}\n` +
-      `━━━━━━━━━━━━━━━━━━━━━\n` +
-      `🔑 *OTP Code:* \`${otp}\`\n` +
-      `📊 Total SMS: ${totalRecords} ${statusIcon}`
-    );
-  }
+function formatTime(timestamp: string): string {
+  return timestamp.replace("T", " ").substring(0, 19);
+}
+
+function formatOtpMessage(sms: SmsMessage, total: string, otpTotal: number): string {
+  const otp = extractOtp(sms.body)!;
+  const time = formatTime(sms.timestamp);
+  const body = escapeHtml(sms.body);
 
   return (
-    `📨 *New SMS Received*\n` +
-    `━━━━━━━━━━━━━━━━━━━━━\n` +
-    `📱 *Phone:* \`${sms.phone}\`\n` +
-    `🕐 *Time:* ${timeStr}\n` +
-    `📡 *SIM:* ${sms.sim}\n` +
-    `📲 *Device:* ${sms.device}\n` +
-    `💳 *Plan:* ${sms.plan}\n` +
-    `━━━━━━━━━━━━━━━━━━━━━\n` +
-    `📩 *Message:*\n${sms.body}\n` +
-    `━━━━━━━━━━━━━━━━━━━━━\n` +
-    `📊 Total SMS: ${totalRecords} ${statusIcon}`
+    `🔐 <b>OTP RECEIVED</b>\n` +
+    `┌─────────────────────────\n` +
+    `│ 📱 <b>Phone:</b>  <code>${escapeHtml(sms.phone)}</code>\n` +
+    `│ 🕐 <b>Time:</b>   ${escapeHtml(time)}\n` +
+    `│ 📡 <b>SIM:</b>    ${escapeHtml(sms.sim)}\n` +
+    `│ 📲 <b>Device:</b> ${escapeHtml(sms.device)}\n` +
+    `│ 💳 <b>Plan:</b>   ${escapeHtml(sms.plan)}\n` +
+    `├─────────────────────────\n` +
+    `│ 💬 <b>Message:</b>\n` +
+    `│ <i>${body}</i>\n` +
+    `├─────────────────────────\n` +
+    `│ 🔑 <b>OTP Code:</b>\n` +
+    `│ <code>${otp}</code>  ← tap to copy\n` +
+    `└─────────────────────────\n` +
+    `📊 SMS: <b>${total}</b>  |  🔐 OTPs Today: <b>${otpTotal}</b>`
   );
 }
 
-function buildInlineKeyboard(sms: SmsMessage): TelegramBot.InlineKeyboardMarkup | undefined {
-  const otp = extractOtp(sms.body);
-  const hasOtp = isOtpMessage(sms.body);
+function formatSmsMessage(sms: SmsMessage, total: string): string {
+  const time = formatTime(sms.timestamp);
+  const body = escapeHtml(sms.body);
 
-  const buttons: TelegramBot.InlineKeyboardButton[][] = [];
+  return (
+    `📨 <b>NEW SMS</b>\n` +
+    `┌─────────────────────────\n` +
+    `│ 📱 <b>Phone:</b>  <code>${escapeHtml(sms.phone)}</code>\n` +
+    `│ 🕐 <b>Time:</b>   ${escapeHtml(time)}\n` +
+    `│ 📡 <b>SIM:</b>    ${escapeHtml(sms.sim)}\n` +
+    `│ 📲 <b>Device:</b> ${escapeHtml(sms.device)}\n` +
+    `│ 💳 <b>Plan:</b>   ${escapeHtml(sms.plan)}\n` +
+    `├─────────────────────────\n` +
+    `│ 💬 <b>Message:</b>\n` +
+    `│ <i>${body}</i>\n` +
+    `└─────────────────────────\n` +
+    `📊 Total SMS: <b>${total}</b>`
+  );
+}
 
-  if (hasOtp && otp) {
-    buttons.push([
-      { text: `📋 Copy OTP: ${otp}`, callback_data: `copy_otp:${otp}` },
-    ]);
-  }
+function buildOtpKeyboard(sms: SmsMessage): TelegramBot.InlineKeyboardMarkup {
+  const otp = extractOtp(sms.body)!;
+  return {
+    inline_keyboard: [
+      [{ text: `🔑 Copy OTP  ${otp}`, callback_data: `otp:${otp}` }],
+      [
+        { text: `📱 Copy Number`, callback_data: `num:${sms.phone}` },
+        { text: `💬 Copy Message`, callback_data: `msg:${sms.body.substring(0, 200)}` },
+      ],
+    ],
+  };
+}
 
-  buttons.push([
-    { text: `📋 Copy Number`, callback_data: `copy_num:${sms.phone}` },
-    { text: `📨 Copy Message`, callback_data: `copy_msg:${sms.body.substring(0, 50)}` },
-  ]);
-
-  return { inline_keyboard: buttons };
+function buildSmsKeyboard(sms: SmsMessage): TelegramBot.InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [
+        { text: `📱 Copy Number`, callback_data: `num:${sms.phone}` },
+        { text: `💬 Copy Message`, callback_data: `msg:${sms.body.substring(0, 200)}` },
+      ],
+    ],
+  };
 }
 
 function makeMessageKey(sms: SmsMessage): string {
-  return `${sms.timestamp}|${sms.phone}|${sms.body.substring(0, 30)}`;
+  return `${sms.timestamp}|${sms.phone}|${sms.body.substring(0, 40)}`;
 }
 
 export function startTelegramBot(): void {
@@ -127,82 +157,158 @@ export function startTelegramBot(): void {
   const bot = new TelegramBot(token, { polling: true });
   const seenMessages = new Set<string>();
   let isFirstRun = true;
+  let otpCount = 0;
+  let totalSmsToday = 0;
 
   logger.info("Telegram bot started, polling SMS API...");
 
+  // Handle inline button presses
   bot.on("callback_query", async (query) => {
     const data = query.data ?? "";
-    let replyText = "";
+    const chatIdStr = String(query.message!.chat.id);
 
-    if (data.startsWith("copy_otp:")) {
-      const otp = data.replace("copy_otp:", "");
-      replyText = `✅ OTP Copied!\n\`${otp}\`\n\nPaste it wherever needed.`;
-    } else if (data.startsWith("copy_num:")) {
-      const num = data.replace("copy_num:", "");
-      replyText = `✅ Number Copied!\n\`${num}\``;
-    } else if (data.startsWith("copy_msg:")) {
-      const msg = data.replace("copy_msg:", "");
-      replyText = `📨 Message:\n\`${msg}\``;
-    }
+    if (data.startsWith("otp:")) {
+      const otp = data.replace("otp:", "");
+      await bot.answerCallbackQuery(query.id, { text: `✅ OTP: ${otp}`, show_alert: true });
+      await bot.sendMessage(chatIdStr,
+        `🔑 <b>OTP Code</b>\n\n<code>${escapeHtml(otp)}</code>\n\n<i>Tap the code above to copy it</i>`,
+        { parse_mode: "HTML" }
+      );
 
-    if (replyText) {
-      await bot.answerCallbackQuery(query.id, { text: "Copied! ✅", show_alert: false });
-      await bot.sendMessage(query.message!.chat.id, replyText, { parse_mode: "Markdown" });
+    } else if (data.startsWith("num:")) {
+      const num = data.replace("num:", "");
+      await bot.answerCallbackQuery(query.id, { text: `✅ Number: ${num}`, show_alert: true });
+      await bot.sendMessage(chatIdStr,
+        `📱 <b>Phone Number</b>\n\n<code>${escapeHtml(num)}</code>\n\n<i>Tap the number above to copy it</i>`,
+        { parse_mode: "HTML" }
+      );
+
+    } else if (data.startsWith("msg:")) {
+      const msg = data.replace("msg:", "");
+      await bot.answerCallbackQuery(query.id, { text: "✅ Message shown below", show_alert: false });
+      await bot.sendMessage(chatIdStr,
+        `💬 <b>Full Message</b>\n\n<code>${escapeHtml(msg)}</code>\n\n<i>Tap the text above to copy it</i>`,
+        { parse_mode: "HTML" }
+      );
+
+    } else if (data === "refresh_stats") {
+      await bot.answerCallbackQuery(query.id, { text: "🔄 Refreshing...", show_alert: false });
+      try {
+        const res = await fetch(API_URL);
+        const d = (await res.json()) as ApiResponse;
+        const statsText = buildStatsMessage(d.iTotalRecords, d.iTotalDisplayRecords, otpCount, totalSmsToday);
+        const keyboard: TelegramBot.InlineKeyboardMarkup = {
+          inline_keyboard: [[{ text: "🔄 Refresh", callback_data: "refresh_stats" }]],
+        };
+        await bot.editMessageText(statsText, {
+          chat_id: chatIdStr,
+          message_id: query.message!.message_id,
+          parse_mode: "HTML",
+          reply_markup: keyboard,
+        });
+      } catch {
+        await bot.answerCallbackQuery(query.id, { text: "❌ Failed to refresh", show_alert: true });
+      }
     }
   });
 
+  function buildStatsMessage(total: string, displayed: string, otps: number, sessionSms: number): string {
+    return (
+      `📊 <b>SMS MONITOR — STATS</b>\n` +
+      `┌─────────────────────────\n` +
+      `│ 📩 Total SMS:      <b>${total}</b>\n` +
+      `│ 📋 Displayed:      <b>${displayed}</b>\n` +
+      `│ 🔐 OTPs (session): <b>${otps}</b>\n` +
+      `│ 📨 New (session):  <b>${sessionSms}</b>\n` +
+      `├─────────────────────────\n` +
+      `│ 🟢 Status:   <b>Active</b>\n` +
+      `│ ⏱ Refresh:  <b>Every 5 sec</b>\n` +
+      `└─────────────────────────`
+    );
+  }
+
+  // /start command
   bot.onText(/\/start/, async (msg) => {
-    const welcomeMsg =
-      `🤖 *SMS Monitor Bot Active!*\n\n` +
-      `I'm watching your SMS inbox and will send you every new message automatically.\n\n` +
-      `🔄 *Refresh rate:* Every 5 seconds\n` +
-      `🔐 *OTP detection:* Automatic\n` +
-      `📋 *Copy buttons:* Available on each message\n\n` +
-      `Just add me to your group and I'll keep everyone updated! ✅`;
-    await bot.sendMessage(msg.chat.id, welcomeMsg, { parse_mode: "Markdown" });
+    const welcome =
+      `🤖 <b>SMS Monitor Bot — Active</b>\n\n` +
+      `I watch your SMS inbox and forward every new message here in real time.\n\n` +
+      `<b>Features:</b>\n` +
+      `┌─────────────────────────\n` +
+      `│ 🔄 Auto-refresh every 5 seconds\n` +
+      `│ 🔐 OTP auto-detection\n` +
+      `│ 📋 One-tap copy for OTP &amp; number\n` +
+      `│ 📊 Live statistics\n` +
+      `└─────────────────────────\n\n` +
+      `<b>Commands:</b>\n` +
+      `/stats — SMS &amp; OTP statistics\n` +
+      `/help — Show all commands\n` +
+      `/status — Check monitoring status\n\n` +
+      `✅ <i>Bot is running and monitoring your inbox.</i>`;
+    await bot.sendMessage(msg.chat.id, welcome, { parse_mode: "HTML" });
   });
 
+  // /help command
+  bot.onText(/\/help/, async (msg) => {
+    const help =
+      `📖 <b>BOT COMMANDS</b>\n` +
+      `┌─────────────────────────\n` +
+      `│ /start   — Welcome message\n` +
+      `│ /stats   — SMS &amp; OTP statistics\n` +
+      `│ /status  — Monitoring status\n` +
+      `│ /help    — This help message\n` +
+      `└─────────────────────────\n\n` +
+      `<b>Button Actions:</b>\n` +
+      `🔑 <i>Copy OTP</i> — Shows OTP as tappable code\n` +
+      `📱 <i>Copy Number</i> — Shows number as tappable code\n` +
+      `💬 <i>Copy Message</i> — Shows full message as tappable code\n\n` +
+      `<i>In Telegram, tap any</i> <code>code block</code> <i>to copy it instantly.</i>`;
+    await bot.sendMessage(msg.chat.id, help, { parse_mode: "HTML" });
+  });
+
+  // /stats command
   bot.onText(/\/stats/, async (msg) => {
     try {
       const res = await fetch(API_URL);
-      const data = (await res.json()) as {
-        iTotalRecords: string;
-        iTotalDisplayRecords: string;
-        aaData: unknown[][];
-        sEcho: number;
+      const data = (await res.json()) as ApiResponse;
+      const text = buildStatsMessage(data.iTotalRecords, data.iTotalDisplayRecords, otpCount, totalSmsToday);
+      const keyboard: TelegramBot.InlineKeyboardMarkup = {
+        inline_keyboard: [[{ text: "🔄 Refresh", callback_data: "refresh_stats" }]],
       };
-      const statsMsg =
-        `📊 *SMS Statistics*\n` +
-        `━━━━━━━━━━━━━━━━━━━━━\n` +
-        `📩 *Total SMS:* ${data.iTotalRecords}\n` +
-        `📋 *Displayed:* ${data.iTotalDisplayRecords}\n` +
-        `🔄 *Monitoring:* Active ✅\n` +
-        `⏱ *Refresh:* Every 5 seconds`;
-      await bot.sendMessage(msg.chat.id, statsMsg, { parse_mode: "Markdown" });
-    } catch (e) {
-      await bot.sendMessage(msg.chat.id, "❌ Failed to fetch stats.");
+      await bot.sendMessage(msg.chat.id, text, { parse_mode: "HTML", reply_markup: keyboard });
+    } catch {
+      await bot.sendMessage(msg.chat.id, "❌ <b>Failed to fetch stats.</b> Please try again.", { parse_mode: "HTML" });
     }
   });
 
+  // /status command
+  bot.onText(/\/status/, async (msg) => {
+    const status =
+      `🟢 <b>MONITORING STATUS</b>\n` +
+      `┌─────────────────────────\n` +
+      `│ 🤖 Bot:      <b>Online</b>\n` +
+      `│ 📡 API:      <b>Connected</b>\n` +
+      `│ ⏱ Interval: <b>5 seconds</b>\n` +
+      `│ 🔐 OTPs:     <b>${otpCount} detected</b>\n` +
+      `│ 📨 New SMS:  <b>${totalSmsToday} this session</b>\n` +
+      `└─────────────────────────`;
+    await bot.sendMessage(msg.chat.id, status, { parse_mode: "HTML" });
+  });
+
+  // Polling loop
   const poll = async () => {
     try {
       const res = await fetch(API_URL);
-      const data = (await res.json()) as {
-        iTotalRecords: string;
-        iTotalDisplayRecords: string;
-        aaData: unknown[][];
-      };
+      const data = (await res.json()) as ApiResponse;
 
       const rows = data.aaData ?? [];
       const total = data.iTotalRecords ?? "0";
 
       if (isFirstRun) {
         for (const row of rows) {
-          const sms = parseSmsRow(row);
-          seenMessages.add(makeMessageKey(sms));
+          seenMessages.add(makeMessageKey(parseSmsRow(row)));
         }
         isFirstRun = false;
-        logger.info({ count: rows.length }, "Initialized SMS cache — future new messages will be sent");
+        logger.info({ count: rows.length }, "SMS cache initialized — monitoring for new messages");
         return;
       }
 
@@ -217,13 +323,22 @@ export function startTelegramBot(): void {
       }
 
       for (const sms of newMessages.reverse()) {
-        const text = formatSmsMessage(sms, total);
-        const keyboard = buildInlineKeyboard(sms);
-        await bot.sendMessage(chatId, text, {
-          parse_mode: "Markdown",
-          reply_markup: keyboard,
-        });
-        logger.info({ phone: sms.phone, time: sms.timestamp }, "Sent SMS to Telegram");
+        totalSmsToday++;
+        const hasOtp = isOtpMessage(sms.body);
+        const otp = extractOtp(sms.body);
+
+        if (hasOtp && otp) {
+          otpCount++;
+          const text = formatOtpMessage(sms, total, otpCount);
+          const keyboard = buildOtpKeyboard(sms);
+          await bot.sendMessage(chatId, text, { parse_mode: "HTML", reply_markup: keyboard });
+          logger.info({ phone: sms.phone, otp }, "OTP SMS sent to Telegram");
+        } else {
+          const text = formatSmsMessage(sms, total);
+          const keyboard = buildSmsKeyboard(sms);
+          await bot.sendMessage(chatId, text, { parse_mode: "HTML", reply_markup: keyboard });
+          logger.info({ phone: sms.phone }, "SMS sent to Telegram");
+        }
       }
     } catch (err) {
       logger.error({ err }, "Error polling SMS API");
