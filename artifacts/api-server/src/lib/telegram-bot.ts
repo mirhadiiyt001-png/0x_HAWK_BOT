@@ -182,6 +182,15 @@ function makeMessageKey(sms: SmsMessage): string {
   return `${sms.timestamp}|${sms.phone}|${sms.body.substring(0, 40)}`;
 }
 
+function isValidSms(sms: SmsMessage): boolean {
+  // Skip malformed/summary rows — real messages have a proper phone number and body
+  if (!sms.phone || sms.phone === "0" || sms.phone.trim() === "") return false;
+  if (!sms.body  || sms.body  === "0" || sms.body.trim()  === "") return false;
+  // Phone must be at least 5 digits (not just "0" or "00" etc.)
+  if (!/\d{4,}/.test(sms.phone)) return false;
+  return true;
+}
+
 function buildStatsMessage(total: string, displayed: string, otps: number, sessionSms: number): string {
   return (
     `📊  <b>LIVE STATISTICS</b>\n` +
@@ -513,7 +522,10 @@ export function startTelegramBot(): void {
       const total = data.iTotalRecords ?? "0";
 
       if (isFirstRun) {
-        for (const row of rows) seenMessages.add(makeMessageKey(parseSmsRow(row)));
+        for (const row of rows) {
+          const sms = parseSmsRow(row);
+          if (isValidSms(sms)) seenMessages.add(makeMessageKey(sms));
+        }
         isFirstRun = false;
         logger.info({ count: rows.length }, "SMS cache initialized — monitoring for new messages");
         return;
@@ -522,6 +534,7 @@ export function startTelegramBot(): void {
       const newMessages: SmsMessage[] = [];
       for (const row of rows) {
         const sms = parseSmsRow(row);
+        if (!isValidSms(sms)) continue; // skip garbage/summary rows
         const key = makeMessageKey(sms);
         if (!seenMessages.has(key)) {
           seenMessages.add(key);

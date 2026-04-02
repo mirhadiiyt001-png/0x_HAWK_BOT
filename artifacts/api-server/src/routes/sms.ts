@@ -16,7 +16,15 @@ router.get("/sms-stats", async (req, res) => {
       sEcho: number;
     };
 
-    const rows = data.aaData ?? [];
+    const allRows = data.aaData ?? [];
+
+    // Filter out garbage/summary rows (phone must be a real number)
+    const rows = allRows.filter((row) => {
+      const arr = row as unknown[];
+      const phone = String(arr[2] ?? "").trim();
+      const body  = String(arr[7] ?? "").trim();
+      return phone !== "0" && phone !== "" && body !== "0" && body !== "" && /\d{4,}/.test(phone);
+    });
 
     // Count OTPs
     const otpKeywords = ["otp", "verification code", "verify", "code", "رمز", "کد", "pin", "auth", "passcode", "пароль", "код", "senha", "doğrulama"];
