@@ -103,37 +103,37 @@ function formatTime(ts: string): string {
 function formatOtpMessage(sms: SmsMessage, total: string, otpTotal: number): string {
   const otp = extractOtp(sms.body)!;
   return (
-    `🔐 <b>OTP RECEIVED</b>\n` +
-    `┌─────────────────────────\n` +
-    `│ 📱 <b>Phone:</b>  <code>${escapeHtml(sms.phone)}</code>\n` +
-    `│ 🕐 <b>Time:</b>   ${escapeHtml(formatTime(sms.timestamp))}\n` +
-    `│ 📡 <b>SIM:</b>    ${escapeHtml(sms.sim)}\n` +
-    `│ 📲 <b>Device:</b> ${escapeHtml(sms.device)}\n` +
-    `│ 💳 <b>Plan:</b>   ${escapeHtml(sms.plan)}\n` +
-    `├─────────────────────────\n` +
-    `│ 💬 <b>Message:</b>\n` +
-    `│ <i>${escapeHtml(sms.body)}</i>\n` +
-    `├─────────────────────────\n` +
-    `│ 🔑 <b>OTP Code:</b>\n` +
-    `│ <code>${escapeHtml(otp)}</code>  ← tap to copy\n` +
-    `└─────────────────────────\n` +
-    `📊 Total SMS: <b>${escapeHtml(total)}</b>  │  🔐 OTPs: <b>${otpTotal}</b>`
+    `⚡️ <b>OTP INTERCEPTED</b> ⚡️\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `📱  <b>Phone</b>   <code>${escapeHtml(sms.phone)}</code>\n` +
+    `🕐  <b>Time</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
+    `📡  <b>SIM</b>     ${escapeHtml(sms.sim)}\n` +
+    `📲  <b>Device</b>  ${escapeHtml(sms.device)}\n` +
+    `💳  <b>Plan</b>    ${escapeHtml(sms.plan)}\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `💬  <b>Message</b>\n` +
+    `<i>${escapeHtml(sms.body)}</i>\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `🔑  <b>OTP CODE  →  </b><code>${escapeHtml(otp)}</code>\n` +
+    `        <i>⬆️ Tap code to copy instantly</i>\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `📊 SMS: <b>${escapeHtml(total)}</b>   🔐 OTPs: <b>${otpTotal}</b>`
   );
 }
 
 function formatSmsMessage(sms: SmsMessage, total: string): string {
   return (
-    `📨 <b>NEW SMS</b>\n` +
-    `┌─────────────────────────\n` +
-    `│ 📱 <b>Phone:</b>  <code>${escapeHtml(sms.phone)}</code>\n` +
-    `│ 🕐 <b>Time:</b>   ${escapeHtml(formatTime(sms.timestamp))}\n` +
-    `│ 📡 <b>SIM:</b>    ${escapeHtml(sms.sim)}\n` +
-    `│ 📲 <b>Device:</b> ${escapeHtml(sms.device)}\n` +
-    `│ 💳 <b>Plan:</b>   ${escapeHtml(sms.plan)}\n` +
-    `├─────────────────────────\n` +
-    `│ 💬 <b>Message:</b>\n` +
-    `│ <i>${escapeHtml(sms.body)}</i>\n` +
-    `└─────────────────────────\n` +
+    `📨 <b>NEW MESSAGE</b>\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `📱  <b>Phone</b>   <code>${escapeHtml(sms.phone)}</code>\n` +
+    `🕐  <b>Time</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
+    `📡  <b>SIM</b>     ${escapeHtml(sms.sim)}\n` +
+    `📲  <b>Device</b>  ${escapeHtml(sms.device)}\n` +
+    `💳  <b>Plan</b>    ${escapeHtml(sms.plan)}\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `💬  <b>Message</b>\n` +
+    `<i>${escapeHtml(sms.body)}</i>\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
     `📊 Total SMS: <b>${escapeHtml(total)}</b>`
   );
 }
@@ -168,16 +168,16 @@ function makeMessageKey(sms: SmsMessage): string {
 
 function buildStatsMessage(total: string, displayed: string, otps: number, sessionSms: number): string {
   return (
-    `📊 <b>SMS MONITOR — STATS</b>\n` +
-    `┌─────────────────────────\n` +
-    `│ 📩 Total SMS:      <b>${escapeHtml(total)}</b>\n` +
-    `│ 📋 Displayed:      <b>${escapeHtml(displayed)}</b>\n` +
-    `│ 🔐 OTPs (session): <b>${otps}</b>\n` +
-    `│ 📨 New (session):  <b>${sessionSms}</b>\n` +
-    `├─────────────────────────\n` +
-    `│ 🟢 Status:   <b>Active</b>\n` +
-    `│ ⏱ Refresh:  <b>Every 5 sec</b>\n` +
-    `└─────────────────────────`
+    `📊  <b>LIVE STATISTICS</b>\n` +
+    `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+    `📩  Total SMS       →  <b>${escapeHtml(total)}</b>\n` +
+    `📋  Displayed       →  <b>${escapeHtml(displayed)}</b>\n` +
+    `🔐  OTPs detected   →  <b>${otps}</b>\n` +
+    `📨  New this session →  <b>${sessionSms}</b>\n` +
+    `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+    `🟢  Status   <b>ACTIVE</b>\n` +
+    `⏱   Refresh  <b>Every 5 seconds</b>\n` +
+    `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰`
   );
 }
 
@@ -206,27 +206,39 @@ export function startTelegramBot(): void {
     try {
       if (data.startsWith("otp:")) {
         const otp = data.replace("otp:", "");
-        await bot.answerCallbackQuery(query.id, { text: `OTP: ${otp}`, show_alert: true });
+        await bot.answerCallbackQuery(query.id, { text: `✅ OTP: ${otp}`, show_alert: true });
         await bot.sendMessage(cid,
-          `🔑 <b>OTP Code</b>\n\n<code>${escapeHtml(otp)}</code>\n\n<i>Tap the code above to copy it instantly</i>`,
+          `🔑  <b>OTP CODE</b>\n` +
+          `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+          `<code>${escapeHtml(otp)}</code>\n` +
+          `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+          `⬆️  <i>Tap the code above to copy it</i>`,
           { parse_mode: "HTML" }
         );
 
       } else if (data.startsWith("num:")) {
         const num = data.replace("num:", "");
-        await bot.answerCallbackQuery(query.id, { text: `Number: ${num}`, show_alert: true });
+        await bot.answerCallbackQuery(query.id, { text: `✅ Number: ${num}`, show_alert: true });
         await bot.sendMessage(cid,
-          `📱 <b>Phone Number</b>\n\n<code>${escapeHtml(num)}</code>\n\n<i>Tap the number above to copy it instantly</i>`,
+          `📱  <b>PHONE NUMBER</b>\n` +
+          `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+          `<code>${escapeHtml(num)}</code>\n` +
+          `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+          `⬆️  <i>Tap the number above to copy it</i>`,
           { parse_mode: "HTML" }
         );
 
       } else if (data.startsWith("msg:")) {
         const storeId = data.replace("msg:", "");
         const sms = messageStore.get(storeId);
-        await bot.answerCallbackQuery(query.id, { text: "Message shown below", show_alert: false });
+        await bot.answerCallbackQuery(query.id, { text: "✅ Message shown below", show_alert: false });
         if (sms) {
           await bot.sendMessage(cid,
-            `💬 <b>Full Message</b>\n\n<code>${escapeHtml(sms.body)}</code>\n\n<i>Tap the text above to copy it</i>`,
+            `💬  <b>FULL MESSAGE</b>\n` +
+            `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+            `<code>${escapeHtml(sms.body)}</code>\n` +
+            `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+            `⬆️  <i>Tap the text above to copy it</i>`,
             { parse_mode: "HTML" }
           );
         }
@@ -254,38 +266,42 @@ export function startTelegramBot(): void {
   // /start
   bot.onText(/\/start/, async (msg) => {
     const welcome =
-      `🤖 <b>SMS Monitor Bot — Active</b>\n\n` +
-      `I watch your SMS inbox and forward every new message here automatically.\n\n` +
-      `<b>Features:</b>\n` +
-      `┌─────────────────────────\n` +
-      `│ 🔄 Auto-refresh every 5 seconds\n` +
-      `│ 🔐 OTP auto-detection\n` +
-      `│ 📋 One-tap copy for OTP &amp; number\n` +
-      `│ 📊 Live statistics\n` +
-      `└─────────────────────────\n\n` +
-      `<b>Commands:</b>\n` +
-      `/stats — SMS &amp; OTP statistics\n` +
-      `/status — Check monitoring status\n` +
-      `/help — Show all commands\n\n` +
-      `✅ <i>Bot is running and monitoring your inbox.</i>`;
+      `\n` +
+      `🛰  <b>SMS MONITOR BOT</b>  🛰\n` +
+      `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+      `🟢  <b>STATUS  —  ONLINE &amp; ACTIVE</b>\n` +
+      `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n\n` +
+      `✦  <b>FEATURES</b>\n` +
+      `  🔄  Auto-refresh every <b>5 seconds</b>\n` +
+      `  🔐  OTP auto-detection &amp; highlight\n` +
+      `  📋  One-tap copy  (OTP / Number / Message)\n` +
+      `  📊  Live SMS &amp; OTP statistics\n` +
+      `  🌐  Multi-language SMS support\n\n` +
+      `✦  <b>COMMANDS</b>\n` +
+      `  /stats   →  Live stats &amp; OTP count\n` +
+      `  /status  →  Health check\n` +
+      `  /help    →  All commands\n\n` +
+      `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+      `✅  <i>Monitoring your inbox 24/7. Every new SMS will appear here automatically.</i>`;
     await bot.sendMessage(msg.chat.id, welcome, { parse_mode: "HTML" });
   });
 
   // /help
   bot.onText(/\/help/, async (msg) => {
     const help =
-      `📖 <b>BOT COMMANDS</b>\n` +
-      `┌─────────────────────────\n` +
-      `│ /start   — Welcome message\n` +
-      `│ /stats   — SMS &amp; OTP statistics\n` +
-      `│ /status  — Monitoring status\n` +
-      `│ /help    — This help message\n` +
-      `└─────────────────────────\n\n` +
-      `<b>Button Actions:</b>\n` +
-      `🔑 <i>Copy OTP</i> — Shows OTP as tappable code\n` +
-      `📱 <i>Copy Number</i> — Shows number as tappable code\n` +
-      `💬 <i>Copy Message</i> — Shows full message as tappable code\n\n` +
-      `<i>In Telegram, tap any</i> <code>code block</code> <i>to copy it instantly.</i>`;
+      `📖  <b>COMMANDS &amp; GUIDE</b>\n` +
+      `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+      `✦  <b>BOT COMMANDS</b>\n` +
+      `  /start   →  Welcome screen\n` +
+      `  /stats   →  SMS &amp; OTP stats\n` +
+      `  /status  →  Monitoring health\n` +
+      `  /help    →  This guide\n\n` +
+      `✦  <b>BUTTON ACTIONS</b>\n` +
+      `  🔑  <i>Copy OTP</i>      →  shows OTP as tappable code\n` +
+      `  📱  <i>Copy Number</i>   →  shows number as tappable code\n` +
+      `  💬  <i>Copy Message</i>  →  shows full message as tappable code\n\n` +
+      `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+      `💡  <i>In Telegram, tap any</i> <code>highlighted code</code> <i>to copy instantly — no long-press needed.</i>`;
     await bot.sendMessage(msg.chat.id, help, { parse_mode: "HTML" });
   });
 
@@ -307,14 +323,16 @@ export function startTelegramBot(): void {
   // /status
   bot.onText(/\/status/, async (msg) => {
     const status =
-      `🟢 <b>MONITORING STATUS</b>\n` +
-      `┌─────────────────────────\n` +
-      `│ 🤖 Bot:      <b>Online</b>\n` +
-      `│ 📡 API:      <b>Connected</b>\n` +
-      `│ ⏱ Interval: <b>5 seconds</b>\n` +
-      `│ 🔐 OTPs:     <b>${otpCount} detected</b>\n` +
-      `│ 📨 New SMS:  <b>${totalSmsToday} this session</b>\n` +
-      `└─────────────────────────`;
+      `🛰  <b>SYSTEM HEALTH CHECK</b>\n` +
+      `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+      `🤖  Bot         🟢  <b>Online</b>\n` +
+      `📡  SMS API     🟢  <b>Connected</b>\n` +
+      `⏱   Poll rate   🟢  <b>Every 5 sec</b>\n` +
+      `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+      `🔐  OTPs detected   →  <b>${otpCount}</b>\n` +
+      `📨  SMS this session →  <b>${totalSmsToday}</b>\n` +
+      `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+      `✅  <i>All systems operational</i>`;
     await bot.sendMessage(msg.chat.id, status, { parse_mode: "HTML" });
   });
 
