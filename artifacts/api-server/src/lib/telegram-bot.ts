@@ -3,7 +3,7 @@ import { logger } from "./logger";
 
 const API_URL = "https://mis-panel-production.up.railway.app/api/bhadi?type=sms";
 const POLL_INTERVAL = 5000;
-const MAX_CALLBACK_DATA = 60; // Telegram limit is 64 bytes
+const MAX_CALLBACK_DATA = 60;
 
 interface SmsMessage {
   timestamp: string;
@@ -23,9 +23,14 @@ interface ApiResponse {
   sEcho: number;
 }
 
-// In-memory store so full message can be retrieved by short key
+// ─── In-memory stores ───────────────────────────────────────────────────────
 const messageStore = new Map<string, SmsMessage>();
 let msgStoreCounter = 0;
+
+// Approved user IDs (owner is always approved)
+const approvedUsers = new Set<number>();
+// Users who have pending approval requests
+const pendingUsers = new Map<number, TelegramBot.User>(); // userId → user info
 
 function storeMessage(sms: SmsMessage): string {
   const id = String(++msgStoreCounter);
@@ -33,6 +38,7 @@ function storeMessage(sms: SmsMessage): string {
   return id;
 }
 
+// ─── SMS Parsing ─────────────────────────────────────────────────────────────
 function parseSmsRow(row: unknown[]): SmsMessage {
   return {
     timestamp: String(row[0] ?? ""),
@@ -52,7 +58,6 @@ function extractOtp(text: string): string | null {
     /(\d{4,8})[^0-9]*(?:OTP|otp|code|کد|رمز|verification|verify|confirm)/i,
     /(?:is|:|-|=)\s*(\d{6})\b/,
     /(?:is|:|-|=)\s*(\d{4})\b/,
-    // Numbers preceded/followed by spaces (OTP patterns in non-latin scripts)
     /\s(\d{6})\s/,
     /\s(\d{4})\s/,
     /^(\d{6})\b/,
@@ -75,31 +80,27 @@ function isOtpMessage(text: string): boolean {
   return keywords.some((kw) => lower.includes(kw));
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-// Safely truncate to byte limit for callback_data
 function truncateBytes(str: string, maxBytes: number): string {
   const enc = new TextEncoder();
   const bytes = enc.encode(str);
   if (bytes.length <= maxBytes) return str;
-  const dec = new TextDecoder();
-  return dec.decode(bytes.slice(0, maxBytes));
+  return new TextDecoder().decode(bytes.slice(0, maxBytes));
 }
 
 function safeCallbackData(prefix: string, value: string): string {
-  const maxValue = MAX_CALLBACK_DATA - prefix.length;
-  return prefix + truncateBytes(value, maxValue);
+  return prefix + truncateBytes(value, MAX_CALLBACK_DATA - prefix.length);
 }
 
 function formatTime(ts: string): string {
   return ts.replace("T", " ").substring(0, 19);
 }
 
+// ─── Message Formatters ───────────────────────────────────────────────────────
 function formatOtpMessage(sms: SmsMessage, total: string, otpTotal: number): string {
   const otp = extractOtp(sms.body)!;
   return (
@@ -170,9 +171,9 @@ function buildStatsMessage(total: string, displayed: string, otps: number, sessi
   return (
     `📊  <b>LIVE STATISTICS</b>\n` +
     `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
-    `📩  Total SMS       →  <b>${escapeHtml(total)}</b>\n` +
-    `📋  Displayed       →  <b>${escapeHtml(displayed)}</b>\n` +
-    `🔐  OTPs detected   →  <b>${otps}</b>\n` +
+    `📩  Total SMS        →  <b>${escapeHtml(total)}</b>\n` +
+    `📋  Displayed        →  <b>${escapeHtml(displayed)}</b>\n` +
+    `🔐  OTPs detected    →  <b>${otps}</b>\n` +
     `📨  New this session →  <b>${sessionSms}</b>\n` +
     `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
     `🟢  Status   <b>ACTIVE</b>\n` +
@@ -181,29 +182,137 @@ function buildStatsMessage(total: string, displayed: string, otps: number, sessi
   );
 }
 
+// ─── Main Export ──────────────────────────────────────────────────────────────
 export function startTelegramBot(): void {
-  const token = process.env["TELEGRAM_BOT_TOKEN"];
-  const chatId = process.env["TELEGRAM_CHAT_ID"];
+  const token    = process.env["TELEGRAM_BOT_TOKEN"];
+  const chatId   = process.env["TELEGRAM_CHAT_ID"];
+  const ownerRaw = process.env["OWNER_CHAT_ID"];
 
-  if (!token || !chatId) {
-    logger.warn("TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set — bot disabled");
+  if (!token || !chatId || !ownerRaw) {
+    logger.warn("TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID or OWNER_CHAT_ID not set — bot disabled");
     return;
   }
 
+  const ownerId = Number(ownerRaw);
   const bot = new TelegramBot(token, { polling: true });
+
+  // Pre-approve the owner
+  approvedUsers.add(ownerId);
+
   const seenMessages = new Set<string>();
   let isFirstRun = true;
   let otpCount = 0;
   let totalSmsToday = 0;
 
-  logger.info("Telegram bot started, polling SMS API...");
+  logger.info({ ownerId }, "Telegram bot started with owner-gated access");
 
-  // Handle inline button presses
+  // ── Access check helper ──
+  function isAllowed(userId: number): boolean {
+    return userId === ownerId || approvedUsers.has(userId);
+  }
+
+  // ── Send approval request to owner ──
+  async function sendApprovalRequest(user: TelegramBot.User): Promise<void> {
+    const userId = user.id;
+    if (pendingUsers.has(userId)) return; // already pending
+    pendingUsers.set(userId, user);
+
+    const name = [user.first_name, user.last_name].filter(Boolean).join(" ");
+    const username = user.username ? `@${user.username}` : "no username";
+
+    const text =
+      `🔔  <b>ACCESS REQUEST</b>\n` +
+      `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+      `👤  <b>Name:</b>     ${escapeHtml(name)}\n` +
+      `🆔  <b>Username:</b> ${escapeHtml(username)}\n` +
+      `🔢  <b>User ID:</b>  <code>${userId}</code>\n` +
+      `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+      `<i>This user wants to use the SMS Monitor Bot.</i>\n` +
+      `<i>Approve or decline their request below.</i>`;
+
+    const keyboard: TelegramBot.InlineKeyboardMarkup = {
+      inline_keyboard: [[
+        { text: "✅ Approve", callback_data: `approve:${userId}` },
+        { text: "❌ Decline", callback_data: `decline:${userId}` },
+      ]],
+    };
+
+    await bot.sendMessage(ownerId, text, { parse_mode: "HTML", reply_markup: keyboard });
+  }
+
+  // ── Callback query handler ──
   bot.on("callback_query", async (query) => {
-    const data = query.data ?? "";
-    const cid = String(query.message!.chat.id);
+    const data    = query.data ?? "";
+    const cid     = String(query.message!.chat.id);
+    const actorId = query.from.id;
 
     try {
+      // Owner-only: approve/decline
+      if (data.startsWith("approve:") || data.startsWith("decline:")) {
+        if (actorId !== ownerId) {
+          await bot.answerCallbackQuery(query.id, { text: "❌ Only the owner can do this.", show_alert: true });
+          return;
+        }
+
+        const targetId = Number(data.split(":")[1]);
+        const targetUser = pendingUsers.get(targetId);
+        const name = targetUser
+          ? [targetUser.first_name, targetUser.last_name].filter(Boolean).join(" ")
+          : String(targetId);
+
+        if (data.startsWith("approve:")) {
+          approvedUsers.add(targetId);
+          pendingUsers.delete(targetId);
+
+          await bot.answerCallbackQuery(query.id, { text: `✅ ${name} approved`, show_alert: false });
+
+          // Update the owner message
+          await bot.editMessageText(
+            `✅  <b>ACCESS APPROVED</b>\n` +
+            `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+            `👤  <b>${escapeHtml(name)}</b> (ID: <code>${targetId}</code>)\n` +
+            `🟢  Status: <b>Approved</b>`,
+            { chat_id: cid, message_id: query.message!.message_id, parse_mode: "HTML" }
+          );
+
+          // Notify the approved user
+          await bot.sendMessage(targetId,
+            `🎉  <b>ACCESS GRANTED</b>\n` +
+            `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+            `✅  The owner has approved your request.\n` +
+            `📡  You now have full access to SMS Monitor Bot.\n\n` +
+            `Use /start to begin.`,
+            { parse_mode: "HTML" }
+          );
+
+        } else {
+          pendingUsers.delete(targetId);
+
+          await bot.answerCallbackQuery(query.id, { text: `❌ ${name} declined`, show_alert: false });
+
+          await bot.editMessageText(
+            `❌  <b>ACCESS DECLINED</b>\n` +
+            `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+            `👤  <b>${escapeHtml(name)}</b> (ID: <code>${targetId}</code>)\n` +
+            `🔴  Status: <b>Declined</b>`,
+            { chat_id: cid, message_id: query.message!.message_id, parse_mode: "HTML" }
+          );
+
+          await bot.sendMessage(targetId,
+            `🚫  <b>ACCESS DENIED</b>\n\n` +
+            `<i>The owner has declined your access request.</i>`,
+            { parse_mode: "HTML" }
+          );
+        }
+        return;
+      }
+
+      // All other callbacks require access
+      if (!isAllowed(actorId)) {
+        await bot.answerCallbackQuery(query.id, { text: "🚫 No access. Send /start to request.", show_alert: true });
+        return;
+      }
+
       if (data.startsWith("otp:")) {
         const otp = data.replace("otp:", "");
         await bot.answerCallbackQuery(query.id, { text: `✅ OTP: ${otp}`, show_alert: true });
@@ -258,13 +367,32 @@ export function startTelegramBot(): void {
           reply_markup: keyboard,
         });
       }
+
     } catch (err) {
       logger.error({ err }, "Callback query error");
     }
   });
 
-  // /start
+  // ── /start ──
   bot.onText(/\/start/, async (msg) => {
+    const user = msg.from!;
+    const userId = user.id;
+
+    if (!isAllowed(userId)) {
+      // Send access request to owner
+      await sendApprovalRequest(user).catch((e) => logger.error({ e }, "Failed to send approval request"));
+
+      await bot.sendMessage(userId,
+        `🔒  <b>ACCESS REQUIRED</b>\n` +
+        `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+        `📩  Your access request has been sent to the owner.\n` +
+        `⏳  Please wait for approval.\n\n` +
+        `<i>You will be notified here once the owner responds.</i>`,
+        { parse_mode: "HTML" }
+      );
+      return;
+    }
+
     const welcome =
       `\n` +
       `🛰  <b>SMS MONITOR BOT</b>  🛰\n` +
@@ -283,11 +411,12 @@ export function startTelegramBot(): void {
       `  /help    →  All commands\n\n` +
       `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
       `✅  <i>Monitoring your inbox 24/7. Every new SMS will appear here automatically.</i>`;
-    await bot.sendMessage(msg.chat.id, welcome, { parse_mode: "HTML" });
+    await bot.sendMessage(userId, welcome, { parse_mode: "HTML" });
   });
 
-  // /help
+  // ── /help ──
   bot.onText(/\/help/, async (msg) => {
+    if (!isAllowed(msg.from!.id)) return;
     const help =
       `📖  <b>COMMANDS &amp; GUIDE</b>\n` +
       `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
@@ -297,16 +426,17 @@ export function startTelegramBot(): void {
       `  /status  →  Monitoring health\n` +
       `  /help    →  This guide\n\n` +
       `✦  <b>BUTTON ACTIONS</b>\n` +
-      `  🔑  <i>Copy OTP</i>      →  shows OTP as tappable code\n` +
-      `  📱  <i>Copy Number</i>   →  shows number as tappable code\n` +
-      `  💬  <i>Copy Message</i>  →  shows full message as tappable code\n\n` +
+      `  🔑  <i>Copy OTP</i>      →  tappable OTP code\n` +
+      `  📱  <i>Copy Number</i>   →  tappable phone number\n` +
+      `  💬  <i>Copy Message</i>  →  full message as tappable code\n\n` +
       `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
-      `💡  <i>In Telegram, tap any</i> <code>highlighted code</code> <i>to copy instantly — no long-press needed.</i>`;
+      `💡  <i>Tap any</i> <code>highlighted code</code> <i>to copy instantly.</i>`;
     await bot.sendMessage(msg.chat.id, help, { parse_mode: "HTML" });
   });
 
-  // /stats
+  // ── /stats ──
   bot.onText(/\/stats/, async (msg) => {
+    if (!isAllowed(msg.from!.id)) return;
     try {
       const res = await fetch(API_URL);
       const data = (await res.json()) as ApiResponse;
@@ -320,8 +450,9 @@ export function startTelegramBot(): void {
     }
   });
 
-  // /status
+  // ── /status ──
   bot.onText(/\/status/, async (msg) => {
+    if (!isAllowed(msg.from!.id)) return;
     const status =
       `🛰  <b>SYSTEM HEALTH CHECK</b>\n` +
       `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
@@ -329,26 +460,43 @@ export function startTelegramBot(): void {
       `📡  SMS API     🟢  <b>Connected</b>\n` +
       `⏱   Poll rate   🟢  <b>Every 5 sec</b>\n` +
       `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
-      `🔐  OTPs detected   →  <b>${otpCount}</b>\n` +
+      `🔐  OTPs detected    →  <b>${otpCount}</b>\n` +
       `📨  SMS this session →  <b>${totalSmsToday}</b>\n` +
+      `👥  Approved users   →  <b>${approvedUsers.size}</b>\n` +
+      `⏳  Pending requests →  <b>${pendingUsers.size}</b>\n` +
       `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
       `✅  <i>All systems operational</i>`;
     await bot.sendMessage(msg.chat.id, status, { parse_mode: "HTML" });
   });
 
-  // Polling loop
+  // ── Owner-only: /users ──
+  bot.onText(/\/users/, async (msg) => {
+    if (msg.from!.id !== ownerId) return;
+    const approvedList = [...approvedUsers].filter(id => id !== ownerId).join(", ") || "none";
+    const pendingList = [...pendingUsers.entries()]
+      .map(([id, u]) => `${u.first_name} (${id})`)
+      .join(", ") || "none";
+
+    await bot.sendMessage(msg.chat.id,
+      `👥  <b>USER MANAGEMENT</b>\n` +
+      `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+      `✅  <b>Approved:</b> ${escapeHtml(approvedList)}\n` +
+      `⏳  <b>Pending:</b>  ${escapeHtml(pendingList)}\n` +
+      `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰`,
+      { parse_mode: "HTML" }
+    );
+  });
+
+  // ── Polling loop ──
   const poll = async () => {
     try {
       const res = await fetch(API_URL);
       const data = (await res.json()) as ApiResponse;
-
       const rows = data.aaData ?? [];
       const total = data.iTotalRecords ?? "0";
 
       if (isFirstRun) {
-        for (const row of rows) {
-          seenMessages.add(makeMessageKey(parseSmsRow(row)));
-        }
+        for (const row of rows) seenMessages.add(makeMessageKey(parseSmsRow(row)));
         isFirstRun = false;
         logger.info({ count: rows.length }, "SMS cache initialized — monitoring for new messages");
         return;
@@ -373,18 +521,19 @@ export function startTelegramBot(): void {
         try {
           if (hasOtp && otp) {
             otpCount++;
-            const text = formatOtpMessage(sms, total, otpCount);
-            const keyboard = buildOtpKeyboard(sms, storeId);
-            await bot.sendMessage(chatId, text, { parse_mode: "HTML", reply_markup: keyboard });
+            await bot.sendMessage(chatId, formatOtpMessage(sms, total, otpCount), {
+              parse_mode: "HTML",
+              reply_markup: buildOtpKeyboard(sms, storeId),
+            });
             logger.info({ phone: sms.phone, otp }, "OTP SMS sent to Telegram");
           } else {
-            const text = formatSmsMessage(sms, total);
-            const keyboard = buildSmsKeyboard(sms, storeId);
-            await bot.sendMessage(chatId, text, { parse_mode: "HTML", reply_markup: keyboard });
+            await bot.sendMessage(chatId, formatSmsMessage(sms, total), {
+              parse_mode: "HTML",
+              reply_markup: buildSmsKeyboard(sms, storeId),
+            });
             logger.info({ phone: sms.phone }, "SMS sent to Telegram");
           }
         } catch (sendErr) {
-          // Fallback: try sending without keyboard if keyboard fails
           logger.error({ sendErr }, "Failed to send with keyboard, retrying without");
           try {
             const text = hasOtp && otp ? formatOtpMessage(sms, total, otpCount) : formatSmsMessage(sms, total);
