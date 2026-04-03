@@ -1,7 +1,7 @@
 import TelegramBot from "node-telegram-bot-api";
 import { logger } from "./logger";
 
-const API_URL = "https://mis-panel-production.up.railway.app/api/bhadi?type=sms";
+const API_URL = "https://0xhawk-production.up.railway.app/?type=sms";
 const POLL_INTERVAL = 5000;
 const MAX_CALLBACK_DATA = 60;
 
@@ -17,10 +17,13 @@ interface SmsMessage {
 }
 
 interface ApiResponse {
-  iTotalRecords: string;
-  iTotalDisplayRecords: string;
-  aaData: unknown[][];
-  sEcho: number;
+  success: boolean;
+  data: {
+    iTotalRecords: string;
+    iTotalDisplayRecords: string;
+    aaData: unknown[][];
+    sEcho: number;
+  };
 }
 
 // ─── In-memory stores ───────────────────────────────────────────────────────
@@ -435,7 +438,7 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
         await bot.answerCallbackQuery(query.id, { text: "🔄 Refreshing...", show_alert: false });
         const res = await fetch(API_URL);
         const d = (await res.json()) as ApiResponse;
-        const statsText = buildStatsMessage(d.iTotalRecords, d.iTotalDisplayRecords, otpCount, totalSmsToday);
+        const statsText = buildStatsMessage(d.data.iTotalRecords, d.data.iTotalDisplayRecords, otpCount, totalSmsToday);
         const keyboard: TelegramBot.InlineKeyboardMarkup = {
           inline_keyboard: [[{ text: "🔄 Refresh", callback_data: "refresh_stats" }]],
         };
@@ -519,7 +522,7 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
     try {
       const res = await fetch(API_URL);
       const data = (await res.json()) as ApiResponse;
-      const text = buildStatsMessage(data.iTotalRecords, data.iTotalDisplayRecords, otpCount, totalSmsToday);
+      const text = buildStatsMessage(data.data.iTotalRecords, data.data.iTotalDisplayRecords, otpCount, totalSmsToday);
       const keyboard: TelegramBot.InlineKeyboardMarkup = {
         inline_keyboard: [[{ text: "🔄 Refresh", callback_data: "refresh_stats" }]],
       };
@@ -571,7 +574,7 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
     try {
       const res = await fetch(API_URL);
       const data = (await res.json()) as ApiResponse;
-      const rows = data.aaData ?? [];
+      const rows = data.data?.aaData ?? [];
 
       if (isFirstRun) {
         // Record the newest timestamp from current API state.

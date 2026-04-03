@@ -2,19 +2,23 @@ import { Router, type IRouter } from "express";
 
 const router: IRouter = Router();
 
-const API_URL = "https://mis-panel-production.up.railway.app/api/bhadi?type=sms";
+const API_URL = "https://0xhawk-production.up.railway.app/?type=sms";
 
 router.get("/sms-stats", async (req, res) => {
   try {
     const upstream = await fetch(API_URL);
     const raw = await upstream.arrayBuffer();
     const text = new TextDecoder("utf-8").decode(raw);
-    const data = JSON.parse(text) as {
-      iTotalRecords: string;
-      iTotalDisplayRecords: string;
-      aaData: unknown[][];
-      sEcho: number;
+    const parsed = JSON.parse(text) as {
+      success: boolean;
+      data: {
+        iTotalRecords: string;
+        iTotalDisplayRecords: string;
+        aaData: unknown[][];
+        sEcho: number;
+      };
     };
+    const data = parsed.data;
 
     const allRows = data.aaData ?? [];
 
