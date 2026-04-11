@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Search, RefreshCw, Copy, Check, PhoneOff,
+  Search, RefreshCw, PhoneOff,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ChevronDown,
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
@@ -18,7 +18,6 @@ interface SmsRow {
   timestamp: string; sim: string; phone: string;
   device: string; plan: string; body: string; isOtp: boolean;
 }
-
 type Status = "not_tried" | "registered" | "unregistered" | "already_other";
 interface NumItem { sim: string; phone: string; status: Status; }
 interface BotInfo  { username: string; }
@@ -31,21 +30,86 @@ const STATUS_CFG: Record<Status, { label: string; color: string; bg: string; bor
 };
 
 async function fetchServerStatuses(): Promise<Record<string, Status>> {
-  try {
-    const r = await fetch(STATUSES_API);
-    if (!r.ok) return {};
-    return (await r.json()) as Record<string, Status>;
-  } catch { return {}; }
+  try { const r = await fetch(STATUSES_API); if (!r.ok) return {}; return (await r.json()) as Record<string, Status>; }
+  catch { return {}; }
 }
-
 async function saveServerStatus(phone: string, status: Status): Promise<void> {
-  await fetch(STATUSES_API, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ phone, status }),
-  });
+  await fetch(STATUSES_API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone, status }) });
 }
 
+// ── Heroicons SVG Components ───────────────────────────────────────────────────
+function IconEnvelope({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+    </svg>
+  );
+}
+function IconKey({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" />
+    </svg>
+  );
+}
+function IconSignal({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 0 1 1.06 0Z" />
+    </svg>
+  );
+}
+function IconGrid({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
+    </svg>
+  );
+}
+function IconPhone({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 8.25h3" />
+    </svg>
+  );
+}
+function IconCreditCard({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5a2.25 2.25 0 0 0 2.25 2.25Z" />
+    </svg>
+  );
+}
+function IconClipboard({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
+    </svg>
+  );
+}
+function IconCheck({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+    </svg>
+  );
+}
+function IconPhoneList({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+    </svg>
+  );
+}
+function IconGlobe({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418" />
+    </svg>
+  );
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function flag(phone: string): string {
   const p = phone.replace(/\D/g, "");
   const map: [string, string][] = [
@@ -99,22 +163,6 @@ function useCountUp(target: number) {
   const prev = useRef(0);
   useEffect(() => {
     if (target === prev.current) return;
-    const start = prev.current; const diff = target - start;
-    let i = 0;
-    const id = setInterval(() => {
-      i++; setV(Math.round(start + diff * i / 30));
-      if (i >= 30) { clearInterval(id); prev.current = target; }
-    }, 20);
-    return () => clearInterval(id);
-  }, [target]);
-  return v;
-}
-
-function useCountUp2(target: number) {
-  const [v, setV] = useState(0);
-  const prev = useRef(0);
-  useEffect(() => {
-    if (target === prev.current) return;
     const start = prev.current; const diff = target - start; let i = 0;
     const id = setInterval(() => { i++; setV(Math.round(start + diff * i / 30)); if (i >= 30) { clearInterval(id); prev.current = target; } }, 20);
     return () => clearInterval(id);
@@ -122,6 +170,7 @@ function useCountUp2(target: number) {
   return v;
 }
 
+// ── Pagination ────────────────────────────────────────────────────────────────
 function Pagination({ page, total, onChange, from, to, count }: {
   page: number; total: number; onChange: (p: number) => void;
   from: number; to: number; count: number;
@@ -158,6 +207,7 @@ function PgBtn({ children, disabled, onClick }: { children: React.ReactNode; dis
   );
 }
 
+// ── OTP Code Display ──────────────────────────────────────────────────────────
 function OtpCode({ otp }: { otp: string }) {
   const [done, setDone] = useState(false);
   const copy = () => { navigator.clipboard.writeText(otp); setDone(true); setTimeout(() => setDone(false), 2000); };
@@ -172,12 +222,15 @@ function OtpCode({ otp }: { otp: string }) {
       </span>
       <span className={`text-2xl sm:text-3xl font-black tracking-[.22em] font-mono ${done ? "text-emerald-300" : "text-white"}`}>{otp}</span>
       <span className={`ml-auto opacity-50 group-hover:opacity-100 transition-opacity shrink-0 ${done ? "text-emerald-400" : "text-violet-400"}`}>
-        {done ? <Check size={15}/> : <Copy size={15}/>}
+        {done
+          ? <IconCheck className="w-4 h-4"/>
+          : <IconClipboard className="w-4 h-4"/>}
       </span>
     </button>
   );
 }
 
+// ── Copy Pill ─────────────────────────────────────────────────────────────────
 function CopyPill({ label, value, primary }: { label: string; value: string; primary?: boolean }) {
   const [ok, setOk] = useState(false);
   const go = () => { navigator.clipboard.writeText(value); setOk(true); setTimeout(() => setOk(false), 1800); };
@@ -187,11 +240,14 @@ function CopyPill({ label, value, primary }: { label: string; value: string; pri
         ok ? "bg-emerald-500/15 border-emerald-400/25 text-emerald-300"
           : primary ? "bg-violet-500/12 border-violet-400/20 text-violet-300 hover:bg-violet-500/22"
           : "bg-white/[.05] border-white/10 text-white/45 hover:bg-white/10 hover:text-white/75"}`}>
-      {ok ? <><Check size={11}/>Copied</> : <><Copy size={11}/>{label}</>}
+      {ok
+        ? <><IconCheck className="w-[11px] h-[11px]"/>Copied</>
+        : <><IconClipboard className="w-[11px] h-[11px]"/>{label}</>}
     </button>
   );
 }
 
+// ── Status Dropdown ───────────────────────────────────────────────────────────
 function StatusDrop({ status, phone, onChange }: { status: Status; phone: string; onChange: (p: string, s: Status) => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -218,7 +274,7 @@ function StatusDrop({ status, phone, onChange }: { status: Status; phone: string
               className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all text-left">
               <span className="w-2 h-2 rounded-full shrink-0" style={{ background: v.color }}/>
               {v.label}
-              {k === status && <Check size={12} className="ml-auto text-violet-400"/>}
+              {k === status && <IconCheck className="w-3 h-3 ml-auto text-violet-400"/>}
             </button>
           ))}
         </div>
@@ -227,6 +283,7 @@ function StatusDrop({ status, phone, onChange }: { status: Status; phone: string
   );
 }
 
+// ── Number Row ────────────────────────────────────────────────────────────────
 function NumRow({ item, idx, isNew, onStatus }: {
   item: NumItem; idx: number; isNew: boolean; onStatus: (p: string, s: Status) => void;
 }) {
@@ -240,7 +297,7 @@ function NumRow({ item, idx, isNew, onStatus }: {
   };
   return (
     <motion.div
-      className={`flex items-center gap-2 sm:gap-3 px-3 py-2.5 rounded-xl border-l-[3px] transition-all hover:bg-white/[.03] ${isNew ? "animate-pulse-once" : ""}`}
+      className={`flex items-center gap-2 sm:gap-3 px-3 py-2.5 rounded-xl border-l-[3px] transition-all hover:bg-white/[.03]`}
       style={{ borderLeftColor: item.status !== "not_tried" ? cfg.color : "transparent" }}
       initial={isNew ? { opacity: 0, x: -8 } : false} animate={{ opacity: 1, x: 0 }}>
       <span className="w-6 h-6 rounded-md bg-white/[.04] text-slate-500 text-[11px] font-mono font-semibold flex items-center justify-center shrink-0">{idx}</span>
@@ -248,19 +305,20 @@ function NumRow({ item, idx, isNew, onStatus }: {
       <div className="flex-1 min-w-0">
         <p className="text-sm font-mono font-semibold text-white truncate cursor-pointer hover:text-violet-400 transition-colors" onClick={copy}>{item.phone}</p>
         <span className="inline-flex items-center gap-1 mt-1 text-[10px] text-white/50 px-2 py-0.5 rounded-md bg-white/[.04] border border-white/[.07] font-medium">
-          📡 {item.sim}
+          <IconGrid className="w-3 h-3 shrink-0"/> {item.sim}
         </span>
       </div>
       <StatusDrop status={item.status} phone={item.phone} onChange={onStatus}/>
       <button onClick={copy} className={`p-1.5 rounded-lg transition-all ${copied ? "text-emerald-400 bg-emerald-500/10" : "text-slate-500 hover:text-violet-400 hover:bg-violet-500/10"}`}>
-        {copied ? <Check size={13}/> : <Copy size={13}/>}
+        {copied ? <IconCheck className="w-[13px] h-[13px]"/> : <IconClipboard className="w-[13px] h-[13px]"/>}
       </button>
     </motion.div>
   );
 }
 
-function StatCard({ emoji, label, value, color }: { emoji: string; label: string; value: number; color: "blue" | "violet" }) {
-  const animated = useCountUp2(value);
+// ── Stat Card (Numbers tab) ────────────────────────────────────────────────────
+function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: number; color: "blue" | "violet" }) {
+  const animated = useCountUp(value);
   const styles = {
     blue:   { border: "border-indigo-500/[.12]", bg: "rgba(99,102,241,.08)", text: "text-indigo-300", iconBg: "rgba(99,102,241,.12)" },
     violet: { border: "border-violet-500/[.12]", bg: "rgba(139,92,246,.08)", text: "text-violet-300", iconBg: "rgba(139,92,246,.12)" },
@@ -270,13 +328,14 @@ function StatCard({ emoji, label, value, color }: { emoji: string; label: string
     <motion.div className={`stat-card glass-card p-3 sm:p-4 border ${s.border}`}
       style={{ background: s.bg }}
       initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-      <div className="stat-icon mb-3 text-lg" style={{ background: s.iconBg }}>{emoji}</div>
+      <div className="stat-icon mb-3" style={{ background: s.iconBg }}>{icon}</div>
       <p className={`text-2xl sm:text-3xl font-black tabular-nums ${s.text}`}>{animated.toLocaleString()}</p>
       <p className="text-[10px] uppercase tracking-wide text-slate-500 mt-1 font-medium">{label}</p>
     </motion.div>
   );
 }
 
+// ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab] = useState<"messages" | "numbers">("messages");
   const [online, setOnline] = useState(false);
@@ -285,7 +344,6 @@ export default function App() {
 
   const [rows, setRows] = useState<SmsRow[]>([]);
   const [totalSms, setTotalSms] = useState(0);
-  const [otpCount, setOtpCount] = useState(0);
   const [smsLoading, setSmsLoading] = useState(true);
   const [smsPage, setSmsPage] = useState(1);
   const [smsFilter, setSmsFilter] = useState<"all" | "otp" | "sms">("all");
@@ -302,37 +360,26 @@ export default function App() {
   const prevPhones = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    fetch(BOT_INFO_API)
-      .then(r => r.json())
+    fetch(BOT_INFO_API).then(r => r.json())
       .then((d: { ok: boolean; username?: string }) => { if (d.ok && d.username) setBot({ username: d.username }); })
       .catch(() => {});
   }, []);
 
   const fetchSms = useCallback(async () => {
     try {
-      const r = await fetch(SMS_API);
-      if (!r.ok) throw new Error();
-      const j = await r.json();
-      if (!j.success) throw new Error();
+      const r = await fetch(SMS_API); if (!r.ok) throw new Error();
+      const j = await r.json(); if (!j.success) throw new Error();
       const aaData: unknown[][] = j.data?.aaData ?? [];
       const parsed: SmsRow[] = [];
-      let otps = 0;
       for (const row of aaData) {
         if (!Array.isArray(row) || row.length < 7) continue;
-        const ts = String(row[0]); const sim = String(row[1]);
-        const phone = String(row[2]); const dev = String(row[3]);
-        const plan = String(row[5] || row[4] || "");
-        const body = String(row[7] || "");
+        const phone = String(row[2]); const body = String(row[7] || "");
         if (phone === "0" || phone === "" || body === "0" || body === "") continue;
         const isOtp = extractOtp(body) !== null;
-        if (isOtp) otps++;
-        parsed.push({ timestamp: ts, sim, phone, device: dev, plan, body, isOtp });
+        parsed.push({ timestamp: String(row[0]), sim: String(row[1]), phone, device: String(row[3]), plan: String(row[5] || row[4] || ""), body, isOtp });
       }
-      setRows(parsed);
-      setTotalSms(parseInt(String(j.data?.iTotalRecords || parsed.length)));
-      setOtpCount(otps);
-      setLastFetch(j.fetchedAt || new Date().toISOString());
-      setOnline(true);
+      setRows(parsed); setTotalSms(parseInt(String(j.data?.iTotalRecords || parsed.length)));
+      setLastFetch(j.fetchedAt || new Date().toISOString()); setOnline(true);
       if (parsed.length > prevLen.current && prevLen.current > 0) {
         setNewIdx(new Set([0])); setTimeout(() => setNewIdx(new Set()), 3000);
       }
@@ -345,14 +392,11 @@ export default function App() {
 
   const fetchNums = useCallback(async () => {
     try {
-      const r = await fetch(NUMBERS_API);
-      if (!r.ok) throw new Error();
-      const j = await r.json();
-      if (!j.success) throw new Error();
+      const r = await fetch(NUMBERS_API); if (!r.ok) throw new Error();
+      const j = await r.json(); if (!j.success) throw new Error();
       const aaData: unknown[][] = j.data?.aaData ?? [];
       const saved = await fetchServerStatuses();
-      const out: NumItem[] = [];
-      const seen = new Set<string>();
+      const out: NumItem[] = []; const seen = new Set<string>();
       for (const row of aaData) {
         if (!Array.isArray(row) || row.length < 2) continue;
         const phone = String(row[1]);
@@ -374,9 +418,7 @@ export default function App() {
   const onStatus = useCallback((phone: string, status: Status) => {
     setNums(prev => prev.map(n => n.phone === phone ? { ...n, status } : n));
     toast.success("Status updated", { description: `${phone} → ${STATUS_CFG[status].label}` });
-    saveServerStatus(phone, status).catch(() => {
-      toast.error("Failed to save status", { description: "Check your connection" });
-    });
+    saveServerStatus(phone, status).catch(() => toast.error("Failed to save status"));
   }, []);
 
   const filtered = rows.filter(r => smsFilter === "all" ? true : smsFilter === "otp" ? r.isOtp : !r.isOtp);
@@ -408,24 +450,28 @@ export default function App() {
   useEffect(() => { setNumPage(1); }, [search, numFilter]);
 
   return (
-    <div className="min-h-screen text-white" style={{ background: "#05050e", fontFamily: "'Inter',system-ui,sans-serif" }}>
+    <div className="min-h-screen text-white" style={{ background: "#060610", fontFamily: "'Inter',system-ui,sans-serif" }}>
       <Toaster position="top-center" richColors theme="dark"
         toastOptions={{ style: { background: "rgba(15,15,25,.95)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,.08)", fontSize: "13px" } }}/>
 
+      {/* Glow blobs */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute -top-48 -left-32 w-[500px] h-[500px] bg-violet-600/[.07] rounded-full blur-[130px]"/>
         <div className="absolute top-1/2 -right-48 w-96 h-96 bg-indigo-600/[.06] rounded-full blur-[110px]"/>
         <div className="absolute -bottom-32 left-1/3 w-80 h-80 bg-purple-700/[.06] rounded-full blur-[100px]"/>
       </div>
 
+      {/* Navbar */}
       <nav className="sticky top-0 z-30 border-b border-white/[.05]"
-        style={{ background: "rgba(5,5,14,.9)", backdropFilter: "blur(24px)" }}>
+        style={{ background: "rgba(6,6,16,.9)", backdropFilter: "blur(24px)" }}>
         <div className="px-4 sm:px-6 lg:px-8 h-[56px] flex items-center justify-between gap-4">
+          {/* Logo */}
           <div className="flex items-center gap-3 shrink-0">
             <div className="relative w-9 h-9">
               <div className="absolute inset-0 rounded-xl bg-violet-500/40 blur-lg"/>
               <div className="relative w-9 h-9 rounded-xl flex items-center justify-center border border-violet-400/25"
                 style={{ background: "linear-gradient(135deg,rgba(139,92,246,.6),rgba(99,102,241,.5))" }}>
+                {/* Heroicons: Wifi/Signal */}
                 <svg className="w-4 h-4 text-violet-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0"/>
                   <circle cx="12" cy="20" r="1" fill="currentColor"/>
@@ -438,6 +484,7 @@ export default function App() {
             </div>
           </div>
 
+          {/* Tabs */}
           <div className="flex gap-1 p-1 rounded-xl border border-white/[.06]" style={{ background: "rgba(255,255,255,.03)" }}>
             {(["messages","numbers"] as const).map(t => (
               <button key={t} onClick={() => setTab(t)}
@@ -449,9 +496,11 @@ export default function App() {
             ))}
           </div>
 
+          {/* Right */}
           <div className="flex items-center gap-2 shrink-0">
             {lastFetch && (
-              <span className="hidden sm:flex items-center gap-1.5 text-[10px] text-white/30 font-medium px-2.5 py-1 rounded-full border border-white/[.07]" style={{ background: "rgba(255,255,255,.03)" }}>
+              <span className="hidden sm:flex items-center gap-1.5 text-[10px] text-white/30 font-medium px-2.5 py-1 rounded-full border border-white/[.07]"
+                style={{ background: "rgba(255,255,255,.03)" }}>
                 <span className="w-1.5 h-1.5 rounded-full bg-sky-400/60 animate-pulse shrink-0"/>
                 {timeAgo(lastFetch)}
               </span>
@@ -469,34 +518,48 @@ export default function App() {
 
       <AnimatePresence mode="wait">
 
+        {/* ══ MESSAGES TAB ══ */}
         {tab === "messages" && (
           <motion.div key="msg" className="px-4 sm:px-6 lg:px-8 py-6 space-y-5"
             initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}>
 
+            {/* Stat Cards */}
             <div className="grid grid-cols-3 gap-3 sm:gap-4">
+              {/* Total SMS */}
               <div className="rounded-2xl border border-blue-500/[.1] p-4 sm:p-5 relative overflow-hidden"
                 style={{ background: "linear-gradient(135deg,rgba(59,130,246,.08),rgba(37,99,235,.04))" }}>
                 <div className="absolute inset-0 bg-gradient-to-br from-white/[.02] to-transparent"/>
-                <div className="w-9 h-9 rounded-xl bg-blue-500/15 flex items-center justify-center mb-3 text-blue-400 text-lg">📩</div>
+                <div className="w-9 h-9 rounded-xl bg-blue-500/15 flex items-center justify-center mb-3">
+                  <IconEnvelope className="w-5 h-5 text-blue-400"/>
+                </div>
                 <p className="text-3xl sm:text-4xl font-black text-blue-300 tabular-nums">{aSms}</p>
                 <p className="text-[11px] text-white/30 mt-1 font-medium">Total SMS</p>
               </div>
+
+              {/* OTPs */}
               <div className="rounded-2xl border border-violet-500/[.12] p-4 sm:p-5 relative overflow-hidden"
                 style={{ background: "linear-gradient(135deg,rgba(139,92,246,.1),rgba(99,102,241,.05))" }}>
                 <div className="absolute inset-0 bg-gradient-to-br from-white/[.02] to-transparent"/>
-                <div className="w-9 h-9 rounded-xl bg-violet-500/15 flex items-center justify-center mb-3 text-lg">🔐</div>
+                <div className="w-9 h-9 rounded-xl bg-violet-500/15 flex items-center justify-center mb-3">
+                  <IconKey className="w-5 h-5 text-violet-300"/>
+                </div>
                 <p className="text-3xl sm:text-4xl font-black text-violet-300 tabular-nums">{aOtps}</p>
                 <p className="text-[11px] text-white/30 mt-1 font-medium">OTPs This Page</p>
               </div>
+
+              {/* Bot Status */}
               <div className={`rounded-2xl border p-4 sm:p-5 relative overflow-hidden ${online ? "border-emerald-500/[.12]" : "border-red-500/[.1]"}`}
                 style={{ background: online ? "linear-gradient(135deg,rgba(16,185,129,.09),rgba(5,150,105,.04))" : "linear-gradient(135deg,rgba(239,68,68,.08),rgba(185,28,28,.03))" }}>
                 <div className="absolute inset-0 bg-gradient-to-br from-white/[.02] to-transparent"/>
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 text-lg ${online ? "bg-emerald-500/15" : "bg-red-500/15"}`}>{online ? "🟢" : "🔴"}</div>
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${online ? "bg-emerald-500/15" : "bg-red-500/15"}`}>
+                  <IconSignal className={`w-5 h-5 ${online ? "text-emerald-400" : "text-red-400"}`}/>
+                </div>
                 <p className={`text-2xl sm:text-3xl font-black ${online ? "text-emerald-300" : "text-red-300"}`}>{online ? "Online" : "Offline"}</p>
                 <p className="text-[11px] text-white/30 mt-1 font-medium">Bot Status</p>
               </div>
             </div>
 
+            {/* Live Feed */}
             <div className="rounded-2xl border border-white/[.06] overflow-hidden"
               style={{ background: "rgba(10,10,20,.85)", backdropFilter: "blur(16px)" }}>
 
@@ -552,6 +615,7 @@ export default function App() {
                           isNew ? "opacity-100" : row.isOtp ? "opacity-30 group-hover:opacity-70" : "opacity-0"}`}
                           style={{ background: "linear-gradient(#a78bfa,#818cf8)" }}/>
 
+                        {/* Top row */}
                         <div className="flex items-center gap-2 mb-2.5">
                           <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md shrink-0 ${
                             row.isOtp ? "bg-violet-500/20 text-violet-300 border border-violet-400/20"
@@ -576,18 +640,19 @@ export default function App() {
 
                         <p className="text-[12px] text-white/35 leading-relaxed mb-3 line-clamp-2">{row.body}</p>
 
+                        {/* Meta chips */}
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-white/50 px-2 py-0.5 rounded-md bg-white/[.04] border border-white/[.07] font-medium">
-                            📡 {row.sim}
+                          <span className="inline-flex items-center gap-1 text-[10px] text-white/50 px-2 py-0.5 rounded-md bg-white/[.04] border border-white/[.07] font-medium">
+                            <IconGrid className="w-3 h-3 shrink-0"/> {row.sim}
                           </span>
                           {row.device && row.device !== "0" && (
-                            <span className="text-[10px] text-sky-300/70 px-2 py-0.5 rounded-md bg-sky-500/[.07] border border-sky-400/[.12] font-medium">
-                              📲 {row.device}
+                            <span className="inline-flex items-center gap-1 text-[10px] text-sky-300/70 px-2 py-0.5 rounded-md bg-sky-500/[.07] border border-sky-400/[.12] font-medium">
+                              <IconPhone className="w-3 h-3 shrink-0"/> {row.device}
                             </span>
                           )}
                           {row.plan && row.plan !== "0" && (
-                            <span className="text-[10px] text-emerald-400/70 px-2 py-0.5 rounded-md bg-emerald-500/[.07] border border-emerald-500/[.12] font-medium">
-                              {row.plan}
+                            <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400/70 px-2 py-0.5 rounded-md bg-emerald-500/[.07] border border-emerald-500/[.12] font-medium">
+                              <IconCreditCard className="w-3 h-3 shrink-0"/> {row.plan}
                             </span>
                           )}
                           <div className="ml-auto flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200">
@@ -626,20 +691,25 @@ export default function App() {
           </motion.div>
         )}
 
+        {/* ══ NUMBERS TAB ══ */}
         {tab === "numbers" && (
           <motion.div key="nums" className="main-content"
             initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}>
 
+            {/* Stat Cards */}
             <div className="stats-grid">
-              <StatCard emoji="📋" label="Total Numbers" value={numTotal} color="blue"/>
-              <StatCard emoji="🗺️" label="Ranges"        value={ranges}   color="violet"/>
+              <StatCard icon={<IconPhoneList className="w-5 h-5 text-indigo-300"/>} label="Total Numbers" value={numTotal} color="blue"/>
+              <StatCard icon={<IconGlobe className="w-5 h-5 text-violet-300"/>} label="Ranges" value={ranges} color="violet"/>
               <div className="stat-card glass-card p-3 sm:p-4">
-                <div className="stat-icon mb-3 text-lg" style={{ background: online ? "rgba(16,185,129,.12)" : "rgba(239,68,68,.1)" }}>{online ? "🟢" : "🔴"}</div>
+                <div className="stat-icon mb-3" style={{ background: online ? "rgba(16,185,129,.12)" : "rgba(239,68,68,.1)" }}>
+                  <IconSignal className={`w-5 h-5 ${online ? "text-emerald-400" : "text-red-400"}`}/>
+                </div>
                 <p className={`text-2xl font-black ${online ? "text-emerald-400" : "text-red-400"}`}>{online ? "Online" : "Offline"}</p>
                 <p className="text-[10px] uppercase tracking-wide text-slate-500 mt-1 font-medium">Bot Status</p>
               </div>
             </div>
 
+            {/* Numbers Panel */}
             <div className="glass-card p-3 sm:p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
@@ -658,6 +728,7 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Filter Tabs */}
               <div className="filter-tabs mb-3">
                 {([
                   { k: "all",          label: "All",          color: "#94a3b8", emoji: "📋" },
@@ -676,12 +747,14 @@ export default function App() {
                 ))}
               </div>
 
+              {/* Search */}
               <div className="search-wrapper mb-3">
                 <Search className="search-icon" size={14}/>
                 <input type="text" value={search} onChange={e => setSearch(e.target.value)}
                   placeholder="Search by number or provider…" className="search-input"/>
               </div>
 
+              {/* List */}
               <div className="space-y-0.5">
                 {numLoading && nums.length === 0 ? (
                   <div className="flex flex-col items-center py-12 gap-3">
