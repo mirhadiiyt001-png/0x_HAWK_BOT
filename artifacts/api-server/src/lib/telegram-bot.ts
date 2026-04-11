@@ -75,8 +75,12 @@ async function loadCustomEmojiPacks(token: string): Promise<void> {
 }
 
 // Wrap emoji in <tg-emoji> if a custom version is available, otherwise return plain emoji
+// Tries exact match, then with/without variation selector U+FE0F to handle encoding mismatches
 function ce(emoji: string): string {
-  const id = customEmojiMap.get(emoji);
+  const VS16 = "\uFE0F";
+  let id = customEmojiMap.get(emoji)
+    ?? customEmojiMap.get(emoji.replace(/\uFE0F/g, ""))      // strip VS16
+    ?? customEmojiMap.get(emoji.endsWith(VS16) ? emoji : emoji + VS16); // add VS16
   return id ? `<tg-emoji emoji-id="${id}">${emoji}</tg-emoji>` : emoji;
 }
 
@@ -173,10 +177,10 @@ function formatOtpMessage(sms: SmsMessage): string {
   return (
     `「 ${ce("🔐")} <b>OTP INTERCEPTED</b> ${ce("⚡️")} 」\n` +
     `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
-    `╭─ ${ce("📋")} <b>DETAILS</b>\n` +
+    `╭─ ${ce("📝")} <b>DETAILS</b>\n` +
     `├ ${ce("📲")} <b>Phone</b>   <code>${escapeHtml(sms.phone)}</code>\n` +
-    `├ ${ce("🕰")} <b>Time</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
-    `├ ${ce("📡")} <b>SIM</b>     ${escapeHtml(sms.sim)}\n` +
+    `├ ${ce("⏰")} <b>Time</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
+    `├ ${ce("🛰")} <b>SIM</b>     ${escapeHtml(sms.sim)}\n` +
     `├ ${ce("🖥")} <b>Device</b>  ${escapeHtml(sms.device)}\n` +
     `╰ ${ce("💰")} <b>Plan</b>    ${escapeHtml(sms.plan)}\n\n` +
     `╭─ ${ce("💬")} <b>MESSAGE</b>\n` +
@@ -189,12 +193,12 @@ function formatOtpMessage(sms: SmsMessage): string {
 
 function formatSmsMessage(sms: SmsMessage): string {
   return (
-    `「 ${ce("📩")} <b>NEW SMS</b> 」\n` +
+    `「 ${ce("📨")} <b>NEW SMS</b> 」\n` +
     `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
-    `╭─ ${ce("📋")} <b>DETAILS</b>\n` +
+    `╭─ ${ce("📝")} <b>DETAILS</b>\n` +
     `├ ${ce("📲")} <b>Phone</b>   <code>${escapeHtml(sms.phone)}</code>\n` +
-    `├ ${ce("🕰")} <b>Time</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
-    `├ ${ce("📡")} <b>SIM</b>     ${escapeHtml(sms.sim)}\n` +
+    `├ ${ce("⏰")} <b>Time</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
+    `├ ${ce("🛰")} <b>SIM</b>     ${escapeHtml(sms.sim)}\n` +
     `├ ${ce("🖥")} <b>Device</b>  ${escapeHtml(sms.device)}\n` +
     `╰ ${ce("💰")} <b>Plan</b>    ${escapeHtml(sms.plan)}\n\n` +
     `╭─ ${ce("💬")} <b>MESSAGE</b>\n` +
@@ -265,8 +269,8 @@ function buildStatsMessage(total: string, displayed: string, otps: number, sessi
     `「 ${ce("📊")} <b>LIVE STATISTICS</b> 」\n` +
     `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
     `╭─ ${ce("📈")} <b>DATA</b>\n` +
-    `├ ${ce("📩")} Total SMS        →  <b>${escapeHtml(total)}</b>\n` +
-    `├ ${ce("📋")} Displayed        →  <b>${escapeHtml(displayed)}</b>\n` +
+    `├ ${ce("📨")} Total SMS        →  <b>${escapeHtml(total)}</b>\n` +
+    `├ ${ce("📝")} Displayed        →  <b>${escapeHtml(displayed)}</b>\n` +
     `├ ${ce("🔐")} OTPs detected    →  <b>${otps}</b>\n` +
     `╰ ${ce("🆕")} New this session →  <b>${sessionSms}</b>\n\n` +
     `╭─ ${ce("⚙️")} <b>SYSTEM</b>\n` +
@@ -516,7 +520,7 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
       await bot.sendMessage(userId,
         `「 ${ce("🔒")} <b>ACCESS REQUIRED</b> 」\n` +
         `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
-        `${ce("📩")} Your request has been sent to the owner.\n` +
+        `${ce("📨")} Your request has been sent to the owner.\n` +
         `${ce("⏳")} Please wait for approval.\n\n` +
         `<i>You'll be notified here once the owner responds.</i>`,
         { parse_mode: "HTML" }
@@ -553,7 +557,7 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
       `├ /stats   →  Live statistics\n` +
       `├ /status  →  System health\n` +
       `╰ /help    →  This guide\n\n` +
-      `╭─ ${ce("🖱")} <b>BUTTON ACTIONS</b>\n` +
+      `╭─ ${ce("🖱️")} <b>BUTTON ACTIONS</b>\n` +
       `├ ${ce("🗝")}  Copy OTP      →  tappable OTP code\n` +
       `├ ${ce("📲")}  Copy Number   →  tappable phone number\n` +
       `╰ ${ce("💬")}  Copy Message  →  full message\n\n` +
@@ -586,11 +590,11 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
       `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
       `╭─ ${ce("🔍")} <b>SERVICES</b>\n` +
       `├ ${ce("🤖")} Bot         ${ce("🟢")}  <b>Online</b>\n` +
-      `├ ${ce("📡")} SMS API     ${ce("🟢")}  <b>Connected</b>\n` +
+      `├ ${ce("🛰")} SMS API     ${ce("🟢")}  <b>Connected</b>\n` +
       `╰ ${ce("⚡️")} Poll rate   ${ce("🟢")}  <b>Every 5 sec</b>\n\n` +
       `╭─ ${ce("📊")} <b>SESSION</b>\n` +
       `├ ${ce("🔐")} OTPs detected    →  <b>${otpCount}</b>\n` +
-      `├ ${ce("📩")} SMS this session →  <b>${totalSmsToday}</b>\n` +
+      `├ ${ce("📨")} SMS this session →  <b>${totalSmsToday}</b>\n` +
       `├ ${ce("👥")} Approved users   →  <b>${approvedUsers.size}</b>\n` +
       `╰ ${ce("⏳")} Pending requests →  <b>${pendingUsers.size}</b>\n` +
       `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
