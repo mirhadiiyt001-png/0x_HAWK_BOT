@@ -1,8 +1,12 @@
 import { Router, type IRouter } from "express";
-import fs from "fs";
-import path from "path";
+import { Pool } from "pg";
 
 const router: IRouter = Router();
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+type Status = "not_tried" | "registered" | "unregistered" | "already_other";
+const VALID: Status[] = ["not_tried", "registered", "unregistered", "already_other"];
 
 const RAILWAY_BASE = "https://0xhawk-production.up.railway.app";
 
@@ -46,42 +50,49 @@ router.get("/proxy/bot-info", async (_req, res) => {
   }
 });
 
-const DATA_FILE = path.resolve(process.cwd(), "data", "statuses.json");
-type Status = "not_tried" | "registered" | "unregistered" | "already_other";
-
-function readStatuses(): Record<string, Status> {
+router.get("/proxy/statuses", async (_req, res) => {
   try {
-    return JSON.parse(fs.readFileSync(DATA_FILE, "utf-8")) as Record<string, Status>;
-  } catch { return {}; }
-}
+    const { rows } = await pool.query<{ phone: string; status: Status }>(
+      "SELECT phone, status FROM phone_statuses"
+    );
+    const map: Record<string, Status> = {};
+    rows.forEach(r => { map[r.phone] = r.status; });
+    res.json(map);
+  } catch (e) {
+    console.error("DB read error:", e);
+    res.status(500).json({ error: "Database error" });
+  }
+});
 
-function writeStatuses(data: Record<string, Status>): void {
-  const dir = path.dirname(DATA_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf-8");
-}
-
-router.get("/proxy/statuses", (_req, res) => { res.json(readStatuses()); });
-
-router.post("/proxy/statuses", (req, res) => {
+router.post("/proxy/statuses", async (req, res) => {
   const { phone, status } = req.body as { phone?: string; status?: string };
-  const valid: Status[] = ["not_tried", "registered", "unregistered", "already_other"];
-  if (!phone || !status || !valid.includes(status as Status)) {
+  if (!phone || !status || !VALID.includes(status as Status)) {
     res.status(400).json({ error: "phone and valid status required" });
     return;
   }
-  const all = readStatuses();
-  all[phone] = status as Status;
-  writeStatuses(all);
-  res.json({ ok: true, phone, status });
+  try {
+    await pool.query(
+      `INSERT INTO phone_statuses (phone, status, updated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (phone) DO UPDATE SET status = EXCLUDED.status, updated_at = NOW()`,
+      [phone, status]
+    );
+    res.json({ ok: true, phone, status });
+  } catch (e) {
+    console.error("DB write error:", e);
+    res.status(500).json({ error: "Database error" });
+  }
 });
 
-router.delete("/proxy/statuses/:phone", (req, res) => {
+router.delete("/proxy/statuses/:phone", async (req, res) => {
   const { phone } = req.params;
-  const all = readStatuses();
-  delete all[phone];
-  writeStatuses(all);
-  res.json({ ok: true, phone });
+  try {
+    await pool.query("DELETE FROM phone_statuses WHERE phone = $1", [phone]);
+    res.json({ ok: true, phone });
+  } catch (e) {
+    console.error("DB delete error:", e);
+    res.status(500).json({ error: "Database error" });
+  }
 });
 
 export default router;
