@@ -80,10 +80,11 @@ function IconCreditCard({ className }: { className?: string }) {
     </svg>
   );
 }
-function IconClipboard({ className }: { className?: string }) {
+function IconCopy({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 4v12a2 2 0 002 2h8a2 2 0 002-2V7.242a2 2 0 00-.602-1.43L16.083 2.57A2 2 0 0014.685 2H10a2 2 0 00-2 2z"/>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16 18v2a2 2 0 01-2 2H6a2 2 0 01-2-2V9a2 2 0 012-2h2"/>
     </svg>
   );
 }
@@ -110,6 +111,23 @@ function IconGlobe({ className }: { className?: string }) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+const COUNTRY_PREFIXES: string[] = [
+  "358","359","380","381","385","386","420","421",
+  "370","371","372","375","351","353","966","971",
+  "44","49","33","34","39","31","32","41","43","45","46",
+  "47","48","36","40","86","81","82","84","91",
+  "92","90","62","60","65","66","98","20","27","55",
+  "52","54","61","64","7","1",
+].sort((a, b) => b.length - a.length);
+
+function stripCountryCode(phone: string): string {
+  const p = phone.replace(/\D/g, "");
+  for (const prefix of COUNTRY_PREFIXES) {
+    if (p.startsWith(prefix)) return p.slice(prefix.length);
+  }
+  return p;
+}
+
 function flag(phone: string): string {
   const p = phone.replace(/\D/g, "");
   const map: [string, string][] = [
@@ -251,7 +269,7 @@ function OtpCode({ otp }: { otp: string }) {
       <span className={`ml-auto opacity-50 group-hover:opacity-100 transition-opacity shrink-0 ${done ? "text-emerald-400" : "text-violet-400"}`}>
         {done
           ? <IconCheck className="w-4 h-4"/>
-          : <IconClipboard className="w-4 h-4"/>}
+          : <IconCopy className="w-4 h-4"/>}
       </span>
     </button>
   );
@@ -269,7 +287,7 @@ function CopyPill({ label, value, primary }: { label: string; value: string; pri
           : "bg-white/[.05] border-white/10 text-white/45 hover:bg-white/10 hover:text-white/75"}`}>
       {ok
         ? <><IconCheck className="w-[11px] h-[11px]"/>Copied</>
-        : <><IconClipboard className="w-[11px] h-[11px]"/>{label}</>}
+        : <><IconCopy className="w-[11px] h-[11px]"/>{label}</>}
     </button>
   );
 }
@@ -316,10 +334,11 @@ function NumRow({ item, idx, isNew, onStatus }: {
 }) {
   const [copied, setCopied] = useState(false);
   const cfg = STATUS_CFG[item.status];
+  const localNum = stripCountryCode(item.phone);
   const copy = async () => {
-    await navigator.clipboard.writeText(item.phone);
+    await navigator.clipboard.writeText(localNum);
     setCopied(true);
-    toast.success("Copied!", { description: item.phone, duration: 1500 });
+    toast.success("Copied!", { description: localNum, duration: 1500 });
     setTimeout(() => setCopied(false), 1500);
   };
   return (
@@ -337,7 +356,7 @@ function NumRow({ item, idx, isNew, onStatus }: {
       </div>
       <StatusDrop status={item.status} phone={item.phone} onChange={onStatus}/>
       <button onClick={copy} className={`p-1.5 rounded-lg transition-all ${copied ? "text-emerald-400 bg-emerald-500/10" : "text-slate-500 hover:text-violet-400 hover:bg-violet-500/10"}`}>
-        {copied ? <IconCheck className="w-[13px] h-[13px]"/> : <IconClipboard className="w-[13px] h-[13px]"/>}
+        {copied ? <IconCheck className="w-[13px] h-[13px]"/> : <IconCopy className="w-[13px] h-[13px]"/>}
       </button>
     </motion.div>
   );
@@ -690,7 +709,7 @@ export default function App() {
                           )}
                           <div className="ml-auto flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200">
                             {otp && <CopyPill label="OTP" value={otp} primary/>}
-                            <CopyPill label="Number" value={row.phone}/>
+                            <CopyPill label="Number" value={stripCountryCode(row.phone)}/>
                           </div>
                         </div>
                       </div>

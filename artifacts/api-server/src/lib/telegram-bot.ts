@@ -1,8 +1,10 @@
 import TelegramBot from "node-telegram-bot-api";
 import { logger } from "./logger";
 
-const API_URL = "https://0xhawk-production.up.railway.app/?type=sms";
-const POLL_INTERVAL = 5000;
+const API_URL         = "https://0xhawk-production.up.railway.app/?type=sms";
+const NUMBERS_API_URL = "https://0xhawk-production.up.railway.app/?type=numbers";
+const POLL_INTERVAL   = 5000;
+const NUMS_POLL_INTERVAL = 15_000;
 const MAX_CALLBACK_DATA = 60;
 
 interface SmsMessage {
@@ -745,6 +747,113 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
 
   poll();
   setInterval(poll, POLL_INTERVAL);
+
+  // ── Numbers polling — detects new phones & ranges ──────────────────────────
+  const seenNumPhones = new Set<string>();
+  const seenRanges    = new Set<string>();
+  let isFirstNumRun   = true;
+
+  const pollNumbers = async () => {
+    try {
+      const res  = await fetch(NUMBERS_API_URL);
+      const data = (await res.json()) as ApiResponse;
+      const rows = data.data?.aaData ?? [];
+
+      if (isFirstNumRun) {
+        for (const row of rows) {
+          if (!Array.isArray(row) || row.length < 2) continue;
+          const phone = String(row[1]); const range = String(row[0]);
+          if (phone && phone !== "0") seenNumPhones.add(phone);
+          if (range && range !== "0") seenRanges.add(range);
+        }
+        isFirstNumRun = false;
+        logger.info({ phones: seenNumPhones.size, ranges: seenRanges.size }, "Numbers cache initialized");
+        return;
+      }
+
+      const forwardEnabled =
+        process.env.NODE_ENV === "production" ||
+        process.env.FORWARD_SMS === "true";
+
+      const newRangeMap = new Map<string, string[]>();
+      const newPhonesByRange = new Map<string, string[]>();
+
+      for (const row of rows) {
+        if (!Array.isArray(row) || row.length < 2) continue;
+        const range = String(row[0]); const phone = String(row[1]);
+        if (!phone || phone === "0") continue;
+
+        const isNewPhone = !seenNumPhones.has(phone);
+        const isNewRange = range && range !== "0" && !seenRanges.has(range);
+
+        if (isNewRange) {
+          seenRanges.add(range);
+          if (!newRangeMap.has(range)) newRangeMap.set(range, []);
+        }
+        if (isNewPhone) {
+          seenNumPhones.add(phone);
+          if (isNewRange) {
+            newRangeMap.get(range)!.push(phone);
+          } else {
+            if (!newPhonesByRange.has(range)) newPhonesByRange.set(range, []);
+            newPhonesByRange.get(range)!.push(phone);
+          }
+        }
+      }
+
+      if (!forwardEnabled) {
+        if (newRangeMap.size > 0 || newPhonesByRange.size > 0)
+          logger.info({ newRanges: newRangeMap.size, newPhoneGroups: newPhonesByRange.size }, "Dev: new numbers detected (not forwarded)");
+        return;
+      }
+
+      // Notify: new ranges
+      for (const [range, phones] of newRangeMap) {
+        const preview = phones.slice(0, 8);
+        const extra = phones.length - preview.length;
+        const lines = preview.map((p, i) =>
+          `${i === preview.length - 1 && extra === 0 ? "╰" : "├"} <code>${escapeHtml(p)}</code>`
+        ).join("\n");
+        const text =
+          `${ce("📡")} <b>NEW RANGE ADDED</b> ${ce("📡")}\n` +
+          `——————————————————————\n\n` +
+          `╭─ ${ce("✨")} <b>DETAILS</b>\n` +
+          `├ ${ce("🃏")} <b>Range:</b>   ${escapeHtml(range)}\n` +
+          `╰ ${ce("💌")} <b>Numbers:</b> <b>${phones.length}</b> added\n\n` +
+          (phones.length > 0
+            ? `╭─ ${ce("📲")} <b>NUMBERS</b>\n${lines}` +
+              (extra > 0 ? `\n╰ <i>+${extra} more...</i>` : "")
+            : "");
+        await bot.sendMessage(chatId, text, { parse_mode: "HTML" });
+        logger.info({ range, count: phones.length }, "New range notification sent");
+      }
+
+      // Notify: new phones in existing ranges
+      for (const [range, phones] of newPhonesByRange) {
+        const preview = phones.slice(0, 8);
+        const extra = phones.length - preview.length;
+        const lines = preview.map((p, i) =>
+          `${i === preview.length - 1 && extra === 0 ? "╰" : "├"} <code>${escapeHtml(p)}</code>`
+        ).join("\n");
+        const text =
+          `${ce("💌")} <b>NEW NUMBERS ADDED</b> ${ce("💌")}\n` +
+          `——————————————————————\n\n` +
+          `╭─ ${ce("✨")} <b>DETAILS</b>\n` +
+          `├ ${ce("🃏")} <b>Range:</b>  ${escapeHtml(range)}\n` +
+          `╰ ${ce("⚡️")} <b>Added:</b>  <b>${phones.length}</b> new numbers\n\n` +
+          `╭─ ${ce("📲")} <b>NUMBERS</b>\n${lines}` +
+          (extra > 0 ? `\n╰ <i>+${extra} more...</i>` : "");
+        await bot.sendMessage(chatId, text, { parse_mode: "HTML" });
+        logger.info({ range, count: phones.length }, "New numbers notification sent");
+      }
+
+    } catch (err) {
+      logger.error({ err }, "Error polling Numbers API");
+    }
+  };
+
+  pollNumbers();
+  setInterval(pollNumbers, NUMS_POLL_INTERVAL);
 
   return bot;
 }
