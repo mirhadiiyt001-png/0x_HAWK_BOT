@@ -175,19 +175,20 @@ function formatTime(ts: string): string {
 function formatOtpMessage(sms: SmsMessage): string {
   const otp = extractOtp(sms.body)!;
   return (
-    `「 ${ce("🔐")} <b>OTP INTERCEPTED</b> ${ce("⚡️")} 」\n` +
-    `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
-    `╭─ ${ce("📝")} <b>DETAILS</b>\n` +
-    `├ ${ce("📲")} <b>Phone</b>   <code>${escapeHtml(sms.phone)}</code>\n` +
+    `${ce("⚡️")} ${ce("🔐")} <b>OTP INTERCEPTED</b> ${ce("🔐")} ${ce("⚡️")}\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `${ce("🗝")} <b>ONE-TIME PASSWORD</b>\n` +
+    `<code>${escapeHtml(otp)}</code>\n` +
+    `<i>⬆️ Tap code to copy instantly</i>\n\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `╭─ ${ce("📝")} <b>SENDER INFO</b>\n` +
+    `├ ${ce("📲")} <b>Number</b>  <code>${escapeHtml(sms.phone)}</code>\n` +
     `├ ${ce("⏰")} <b>Time</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
     `├ ${ce("🛰")} <b>SIM</b>     ${escapeHtml(sms.sim)}\n` +
     `├ ${ce("🖥")} <b>Device</b>  ${escapeHtml(sms.device)}\n` +
     `╰ ${ce("💰")} <b>Plan</b>    ${escapeHtml(sms.plan)}\n\n` +
-    `╭─ ${ce("💬")} <b>MESSAGE</b>\n` +
-    `╰ <i>${escapeHtml(sms.body)}</i>\n\n` +
-    `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
-    `${ce("🗝")} <b>OTP CODE  →  </b><code>${escapeHtml(otp)}</code>\n` +
-    `     ⬆️ <i>Tap to copy instantly</i>`
+    `╭─ ${ce("💬")} <b>ORIGINAL MESSAGE</b>\n` +
+    `╰ <i>${escapeHtml(sms.body)}</i>`
   );
 }
 
@@ -323,11 +324,12 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
 
   // Register commands so Telegram shows them when user types /
   bot.setMyCommands([
-    { command: "start",  description: "Welcome & activate access" },
-    { command: "stats",  description: "Live SMS & OTP statistics" },
-    { command: "status", description: "System health check" },
-    { command: "help",   description: "Command reference & guide" },
-    { command: "users",  description: "Manage users (owner only)" },
+    { command: "start",   description: "Welcome & activate access" },
+    { command: "stats",   description: "Live SMS & OTP statistics" },
+    { command: "status",  description: "System health check" },
+    { command: "help",    description: "Command reference & guide" },
+    { command: "users",   description: "Manage users (owner only)" },
+    { command: "testmsg", description: "Preview OTP & SMS message format (owner)" },
   ]).catch((e) => logger.warn({ e }, "setMyCommands failed"));
 
   // Timestamp-based dedup — survives restarts cleanly
@@ -620,6 +622,33 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
       `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄`,
       { parse_mode: "HTML" }
     );
+  });
+
+  // ── Owner-only: /testmsg — preview OTP & SMS message formats instantly ──
+  bot.onText(/\/testmsg/, async (msg) => {
+    if (msg.from!.id !== ownerId) return;
+
+    const fakeSms: SmsMessage = {
+      timestamp: new Date().toISOString().replace("T", " ").substring(0, 19),
+      sim: "SIM 1 (PK)",
+      phone: "+92 300 1234567",
+      device: "Replit TestDevice",
+      currency: "PKR",
+      plan: "Zong Premium",
+      status: 1,
+      body: "Your OTP code is 847291. Do not share with anyone.",
+    };
+
+    const otpStoreId = storeMessage(fakeSms);
+    const otpText   = formatOtpMessage(fakeSms);
+    const otpKb     = buildOtpKeyboard(fakeSms, otpStoreId);
+    await bot.sendMessage(msg.chat.id, otpText, { parse_mode: "HTML", reply_markup: otpKb });
+
+    const fakeSms2: SmsMessage = { ...fakeSms, status: 0, body: "Your account statement for March 2026 is ready. Visit portal.bank.com to view." };
+    const smsStoreId = storeMessage(fakeSms2);
+    const smsText    = formatSmsMessage(fakeSms2);
+    const smsKb      = buildSmsKeyboard(fakeSms2, smsStoreId);
+    await bot.sendMessage(msg.chat.id, smsText, { parse_mode: "HTML", reply_markup: smsKb });
   });
 
   // ── Polling loop ──
