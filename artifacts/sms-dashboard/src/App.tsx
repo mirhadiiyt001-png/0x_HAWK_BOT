@@ -370,23 +370,17 @@ function PgBtn({ children, disabled, onClick, title }: { children: React.ReactNo
 function AppFooter() {
   const year = new Date().getFullYear();
   return (
-    <footer className="mt-8 pb-8 flex flex-col items-center gap-3">
-      {/* Thin gradient rule */}
-      <div className="w-full h-px"
-        style={{ background: "linear-gradient(to right,transparent,rgba(139,92,246,.15),transparent)" }}/>
-
-      {/* Single clean line */}
-      <div className="flex items-center gap-2.5">
-        <span className="text-[10px] font-medium tracking-[.14em] uppercase"
-          style={{ color: "rgba(255,255,255,.18)" }}>Zone SMS</span>
-        <span style={{ color: "rgba(139,92,246,.35)", fontSize: 10 }}>·</span>
-        <span className="text-[10px] font-black tracking-tight"
+    <footer className="py-4 flex items-center justify-center">
+      <div className="flex items-center gap-1.5 text-[11px] font-semibold"
+        style={{ color: "rgba(255,255,255,.35)" }}>
+        <span>⚡️</span>
+        <span>Powered by</span>
+        <span className="font-black"
           style={{ background: "linear-gradient(90deg,#a78bfa,#818cf8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
           Shadow Logic
         </span>
-        <span style={{ color: "rgba(255,255,255,.1)", fontSize: 10 }}>·</span>
-        <span className="text-[10px] font-mono"
-          style={{ color: "rgba(255,255,255,.18)" }}>© {year}</span>
+        <span>🚀</span>
+        <span style={{ color: "rgba(255,255,255,.2)" }}>© {year}</span>
       </div>
     </footer>
   );
