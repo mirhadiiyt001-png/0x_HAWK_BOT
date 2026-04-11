@@ -508,8 +508,8 @@ export default function App() {
               </div>
             </div>
             <div className="leading-tight">
-              <p className="text-[13px] font-bold text-white tracking-tight">{bot ? `@${bot.username}` : "SMS Monitor"}</p>
-              <p className="text-[9px] tracking-[.18em] uppercase" style={{ color: "rgba(139,92,246,.7)" }}>Zone SMS</p>
+              <p className="text-[13px] font-black text-white tracking-widest uppercase" style={{ letterSpacing: "0.12em" }}>Zone SMS</p>
+              <p className="text-[9px] tracking-[.22em] uppercase font-medium" style={{ color: "rgba(139,92,246,.65)" }}>SMS Monitor</p>
             </div>
           </div>
 
@@ -671,7 +671,7 @@ export default function App() {
 
                         {otp && <div className="mb-3"><OtpCode otp={otp}/></div>}
 
-                        <p className="text-[12px] text-white/35 leading-relaxed mb-3 line-clamp-2">{row.body}</p>
+                        <p className="text-[12px] text-slate-300 leading-relaxed mb-3 line-clamp-2">{row.body}</p>
 
                         {/* Meta chips */}
                         <div className="flex items-center gap-2">
