@@ -525,7 +525,7 @@ export default function App() {
                 </svg>
               </div>
             </div>
-            <div className="leading-tight">
+            <div className="leading-tight hidden sm:block">
               <p className="text-[13px] font-black text-white" style={{ letterSpacing: "0.12em" }}>ZONE SMS</p>
               <p className="text-[9px] tracking-[.22em] uppercase font-medium" style={{ color: "rgba(139,92,246,.65)" }}>SMS Monitor</p>
             </div>
