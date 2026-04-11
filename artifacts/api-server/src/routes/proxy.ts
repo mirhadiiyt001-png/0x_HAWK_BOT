@@ -1,9 +1,7 @@
 import { Router, type IRouter } from "express";
-import { Pool } from "pg";
+import { pool } from "../lib/db";
 
 const router: IRouter = Router();
-
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 type Status = "not_tried" | "registered" | "unregistered" | "already_other";
 const VALID: Status[] = ["not_tried", "registered", "unregistered", "already_other"];
@@ -60,6 +58,28 @@ router.get("/proxy/statuses", async (_req, res) => {
     res.json(map);
   } catch (e) {
     console.error("DB read error:", e);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+router.post("/proxy/statuses/bulk", async (req, res) => {
+  const { entries } = req.body as { entries?: Array<{ phone: string; status: string }> };
+  if (!entries || !Array.isArray(entries) || entries.length === 0) {
+    res.status(400).json({ error: "entries array required" }); return;
+  }
+  const valid = entries.filter(e => e.phone && VALID.includes(e.status as Status));
+  if (valid.length === 0) { res.status(400).json({ error: "no valid entries" }); return; }
+  try {
+    const values = valid.map((_, i) => `($${i * 2 + 1}, $${i * 2 + 2}, NOW())`).join(",");
+    const params = valid.flatMap(e => [e.phone, e.status]);
+    await pool.query(
+      `INSERT INTO phone_statuses (phone, status, updated_at) VALUES ${values}
+       ON CONFLICT (phone) DO UPDATE SET status = EXCLUDED.status, updated_at = NOW()`,
+      params
+    );
+    res.json({ ok: true, count: valid.length });
+  } catch (e) {
+    console.error("DB bulk write error:", e);
     res.status(500).json({ error: "Database error" });
   }
 });

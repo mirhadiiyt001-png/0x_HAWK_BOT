@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { runMigrations } from "./lib/db";
 import { startTelegramBot } from "./lib/telegram-bot";
 
 const rawPort = process.env["PORT"];
@@ -16,6 +17,7 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
+runMigrations().then(() => {
 app.listen(port, (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
@@ -52,4 +54,5 @@ app.listen(port, (err) => {
     // In development, use polling (deletes any stale webhook first)
     startTelegramBot();
   }
+});
 });
