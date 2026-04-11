@@ -35,6 +35,51 @@ const approvedUsers = new Set<number>();
 // Users who have pending approval requests
 const pendingUsers = new Map<number, TelegramBot.User>(); // userId → user info
 
+// ─── Custom Emoji Store ───────────────────────────────────────────────────────
+// Maps standard Unicode emoji → Telegram custom_emoji_id from sticker packs
+const customEmojiMap = new Map<string, string>();
+
+const EMOJI_PACKS = [
+  "Ntgbbvddf_by_fStikBot",
+  "Icon_2023",
+  "RestrictedEmoji",
+  "IslomjonAnimeEmoji",
+  "Topics",
+  "Taj_Mehyar",
+  "Anonymous_Anaconda_by_fStikBot",
+  "NewsEmoji",
+];
+
+type StickerObj = { emoji: string; custom_emoji_id?: string; type: string };
+
+async function loadCustomEmojiPacks(token: string): Promise<void> {
+  let loaded = 0;
+  for (const name of EMOJI_PACKS) {
+    try {
+      const r = await fetch(`https://api.telegram.org/bot${token}/getStickerSet?name=${name}`);
+      const d = await r.json() as { ok: boolean; result?: { stickers: StickerObj[] } };
+      if (d.ok && d.result?.stickers) {
+        for (const s of d.result.stickers) {
+          if (s.type === "custom_emoji" && s.custom_emoji_id && s.emoji) {
+            // First pack that has a given emoji wins
+            if (!customEmojiMap.has(s.emoji)) {
+              customEmojiMap.set(s.emoji, s.custom_emoji_id);
+              loaded++;
+            }
+          }
+        }
+      }
+    } catch { /* ignore per-pack errors */ }
+  }
+  logger.info({ packs: EMOJI_PACKS.length, uniqueEmojis: customEmojiMap.size }, "Custom emoji packs loaded");
+}
+
+// Wrap emoji in <tg-emoji> if a custom version is available, otherwise return plain emoji
+function ce(emoji: string): string {
+  const id = customEmojiMap.get(emoji);
+  return id ? `<tg-emoji emoji-id="${id}">${emoji}</tg-emoji>` : emoji;
+}
+
 function storeMessage(sms: SmsMessage): string {
   const id = String(++msgStoreCounter);
   messageStore.set(id, sms);
@@ -126,33 +171,33 @@ function formatTime(ts: string): string {
 function formatOtpMessage(sms: SmsMessage): string {
   const otp = extractOtp(sms.body)!;
   return (
-    `「 🔐 <b>OTP INTERCEPTED</b> ⚡️ 」\n` +
+    `「 ${ce("🔐")} <b>OTP INTERCEPTED</b> ${ce("⚡️")} 」\n` +
     `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
-    `╭─ 📋 <b>DETAILS</b>\n` +
-    `├ 📲 <b>Phone</b>   <code>${escapeHtml(sms.phone)}</code>\n` +
-    `├ 🕰 <b>Time</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
-    `├ 📡 <b>SIM</b>     ${escapeHtml(sms.sim)}\n` +
-    `├ 🖥 <b>Device</b>  ${escapeHtml(sms.device)}\n` +
-    `╰ 💰 <b>Plan</b>    ${escapeHtml(sms.plan)}\n\n` +
-    `╭─ 💬 <b>MESSAGE</b>\n` +
+    `╭─ ${ce("📋")} <b>DETAILS</b>\n` +
+    `├ ${ce("📲")} <b>Phone</b>   <code>${escapeHtml(sms.phone)}</code>\n` +
+    `├ ${ce("🕰")} <b>Time</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
+    `├ ${ce("📡")} <b>SIM</b>     ${escapeHtml(sms.sim)}\n` +
+    `├ ${ce("🖥")} <b>Device</b>  ${escapeHtml(sms.device)}\n` +
+    `╰ ${ce("💰")} <b>Plan</b>    ${escapeHtml(sms.plan)}\n\n` +
+    `╭─ ${ce("💬")} <b>MESSAGE</b>\n` +
     `╰ <i>${escapeHtml(sms.body)}</i>\n\n` +
     `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
-    `🗝 <b>OTP CODE  →  </b><code>${escapeHtml(otp)}</code>\n` +
+    `${ce("🗝")} <b>OTP CODE  →  </b><code>${escapeHtml(otp)}</code>\n` +
     `     ⬆️ <i>Tap to copy instantly</i>`
   );
 }
 
 function formatSmsMessage(sms: SmsMessage): string {
   return (
-    `「 📩 <b>NEW SMS</b> 」\n` +
+    `「 ${ce("📩")} <b>NEW SMS</b> 」\n` +
     `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
-    `╭─ 📋 <b>DETAILS</b>\n` +
-    `├ 📲 <b>Phone</b>   <code>${escapeHtml(sms.phone)}</code>\n` +
-    `├ 🕰 <b>Time</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
-    `├ 📡 <b>SIM</b>     ${escapeHtml(sms.sim)}\n` +
-    `├ 🖥 <b>Device</b>  ${escapeHtml(sms.device)}\n` +
-    `╰ 💰 <b>Plan</b>    ${escapeHtml(sms.plan)}\n\n` +
-    `╭─ 💬 <b>MESSAGE</b>\n` +
+    `╭─ ${ce("📋")} <b>DETAILS</b>\n` +
+    `├ ${ce("📲")} <b>Phone</b>   <code>${escapeHtml(sms.phone)}</code>\n` +
+    `├ ${ce("🕰")} <b>Time</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
+    `├ ${ce("📡")} <b>SIM</b>     ${escapeHtml(sms.sim)}\n` +
+    `├ ${ce("🖥")} <b>Device</b>  ${escapeHtml(sms.device)}\n` +
+    `╰ ${ce("💰")} <b>Plan</b>    ${escapeHtml(sms.plan)}\n\n` +
+    `╭─ ${ce("💬")} <b>MESSAGE</b>\n` +
     `╰ <i>${escapeHtml(sms.body)}</i>`
   );
 }
@@ -217,16 +262,16 @@ function isValidSms(sms: SmsMessage): boolean {
 
 function buildStatsMessage(total: string, displayed: string, otps: number, sessionSms: number): string {
   return (
-    `「 📊 <b>LIVE STATISTICS</b> 」\n` +
+    `「 ${ce("📊")} <b>LIVE STATISTICS</b> 」\n` +
     `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
-    `╭─ 📈 <b>DATA</b>\n` +
-    `├ 📩 Total SMS        →  <b>${escapeHtml(total)}</b>\n` +
-    `├ 📋 Displayed        →  <b>${escapeHtml(displayed)}</b>\n` +
-    `├ 🔐 OTPs detected    →  <b>${otps}</b>\n` +
-    `╰ 🆕 New this session →  <b>${sessionSms}</b>\n\n` +
-    `╭─ ⚙️ <b>SYSTEM</b>\n` +
-    `├ 🟢 Status   →  <b>ACTIVE</b>\n` +
-    `╰ ⚡️ Refresh  →  <b>Every 5 seconds</b>\n` +
+    `╭─ ${ce("📈")} <b>DATA</b>\n` +
+    `├ ${ce("📩")} Total SMS        →  <b>${escapeHtml(total)}</b>\n` +
+    `├ ${ce("📋")} Displayed        →  <b>${escapeHtml(displayed)}</b>\n` +
+    `├ ${ce("🔐")} OTPs detected    →  <b>${otps}</b>\n` +
+    `╰ ${ce("🆕")} New this session →  <b>${sessionSms}</b>\n\n` +
+    `╭─ ${ce("⚙️")} <b>SYSTEM</b>\n` +
+    `├ ${ce("🟢")} Status   →  <b>ACTIVE</b>\n` +
+    `╰ ${ce("⚡️")} Refresh  →  <b>Every 5 seconds</b>\n` +
     `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄`
   );
 }
@@ -269,6 +314,9 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
   // Pre-approve the owner
   approvedUsers.add(ownerId);
 
+  // Load custom emoji packs in background (non-blocking — plain emoji used until ready)
+  loadCustomEmojiPacks(token).catch((e) => logger.warn({ e }, "Emoji pack load failed"));
+
   // Register commands so Telegram shows them when user types /
   bot.setMyCommands([
     { command: "start",  description: "Welcome & activate access" },
@@ -302,12 +350,12 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
     const username = user.username ? `@${user.username}` : "no username";
 
     const text =
-      `「 🔔 <b>ACCESS REQUEST</b> 」\n` +
+      `「 ${ce("🔔")} <b>ACCESS REQUEST</b> 」\n` +
       `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
-      `╭─ 👤 <b>USER INFO</b>\n` +
-      `├ 🏷 <b>Name</b>      ${escapeHtml(name)}\n` +
-      `├ 🆔 <b>Username</b>  ${escapeHtml(username)}\n` +
-      `╰ 🔢 <b>User ID</b>   <code>${userId}</code>\n\n` +
+      `╭─ ${ce("👤")} <b>USER INFO</b>\n` +
+      `├ ${ce("🏷")} <b>Name</b>      ${escapeHtml(name)}\n` +
+      `├ ${ce("🆔")} <b>Username</b>  ${escapeHtml(username)}\n` +
+      `╰ ${ce("🔢")} <b>User ID</b>   <code>${userId}</code>\n\n` +
       `<i>This user wants access to Zone SMS Bot.</i>\n` +
       `<i>Approve or decline below.</i>`;
 
@@ -349,20 +397,20 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
 
           // Update the owner message
           await bot.editMessageText(
-            `「 ✅ <b>ACCESS APPROVED</b> 」\n` +
+            `「 ${ce("✅")} <b>ACCESS APPROVED</b> 」\n` +
             `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
-            `╭─ 👤 <b>${escapeHtml(name)}</b>\n` +
-            `├ 🔢 ID: <code>${targetId}</code>\n` +
-            `╰ 🟢 Status: <b>Approved</b>`,
+            `╭─ ${ce("👤")} <b>${escapeHtml(name)}</b>\n` +
+            `├ ${ce("🔢")} ID: <code>${targetId}</code>\n` +
+            `╰ ${ce("🟢")} Status: <b>Approved</b>`,
             { chat_id: cid, message_id: query.message!.message_id, parse_mode: "HTML" }
           );
 
           // Notify the approved user
           await bot.sendMessage(targetId,
-            `「 🎉 <b>ACCESS GRANTED</b> 」\n` +
+            `「 ${ce("🎉")} <b>ACCESS GRANTED</b> 」\n` +
             `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
-            `✅ The owner has approved your request.\n` +
-            `🌐 You now have full access to Zone SMS Bot.\n\n` +
+            `${ce("✅")} The owner has approved your request.\n` +
+            `${ce("🌐")} You now have full access to Zone SMS Bot.\n\n` +
             `Use /start to begin.`,
             { parse_mode: "HTML" }
           );
@@ -373,16 +421,16 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
           await bot.answerCallbackQuery(query.id, { text: `❌ ${name} declined`, show_alert: false });
 
           await bot.editMessageText(
-            `「 ❌ <b>ACCESS DECLINED</b> 」\n` +
+            `「 ${ce("❌")} <b>ACCESS DECLINED</b> 」\n` +
             `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
-            `╭─ 👤 <b>${escapeHtml(name)}</b>\n` +
-            `├ 🔢 ID: <code>${targetId}</code>\n` +
-            `╰ 🔴 Status: <b>Declined</b>`,
+            `╭─ ${ce("👤")} <b>${escapeHtml(name)}</b>\n` +
+            `├ ${ce("🔢")} ID: <code>${targetId}</code>\n` +
+            `╰ ${ce("🔴")} Status: <b>Declined</b>`,
             { chat_id: cid, message_id: query.message!.message_id, parse_mode: "HTML" }
           );
 
           await bot.sendMessage(targetId,
-            `「 🚫 <b>ACCESS DENIED</b> 」\n` +
+            `「 ${ce("🚫")} <b>ACCESS DENIED</b> 」\n` +
             `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
             `<i>The owner has declined your access request.</i>`,
             { parse_mode: "HTML" }
@@ -401,7 +449,7 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
         const otp = data.replace("otp:", "");
         await bot.answerCallbackQuery(query.id, { text: "🗝 OTP sent — tap to copy!", show_alert: false });
         await bot.sendMessage(actorId,
-          `「 🗝 <b>OTP CODE</b> 」\n` +
+          `「 ${ce("🗝")} <b>OTP CODE</b> 」\n` +
           `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
           `<code>${escapeHtml(otp)}</code>\n\n` +
           `⬆️ <i>Tap the code above to copy instantly</i>`,
@@ -412,7 +460,7 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
         const num = data.replace("num:", "");
         await bot.answerCallbackQuery(query.id, { text: "📲 Number sent — tap to copy!", show_alert: false });
         await bot.sendMessage(actorId,
-          `「 📲 <b>PHONE NUMBER</b> 」\n` +
+          `「 ${ce("📲")} <b>PHONE NUMBER</b> 」\n` +
           `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
           `<code>${escapeHtml(num)}</code>\n\n` +
           `⬆️ <i>Tap the number above to copy instantly</i>`,
@@ -425,7 +473,7 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
         if (sms) {
           await bot.answerCallbackQuery(query.id, { text: "💬 Message sent — tap to copy!", show_alert: false });
           await bot.sendMessage(actorId,
-            `「 💬 <b>FULL MESSAGE</b> 」\n` +
+            `「 ${ce("💬")} <b>FULL MESSAGE</b> 」\n` +
             `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
             `<code>${escapeHtml(sms.body)}</code>\n\n` +
             `⬆️ <i>Tap the text above to copy instantly</i>`,
@@ -466,10 +514,10 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
       await sendApprovalRequest(user).catch((e) => logger.error({ e }, "Failed to send approval request"));
 
       await bot.sendMessage(userId,
-        `「 🔒 <b>ACCESS REQUIRED</b> 」\n` +
+        `「 ${ce("🔒")} <b>ACCESS REQUIRED</b> 」\n` +
         `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
-        `📩 Your request has been sent to the owner.\n` +
-        `⏳ Please wait for approval.\n\n` +
+        `${ce("📩")} Your request has been sent to the owner.\n` +
+        `${ce("⏳")} Please wait for approval.\n\n` +
         `<i>You'll be notified here once the owner responds.</i>`,
         { parse_mode: "HTML" }
       );
@@ -477,20 +525,20 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
     }
 
     const welcome =
-      `「 🚀 <b>ZONE SMS MONITOR</b> 」\n` +
+      `「 ${ce("🚀")} <b>ZONE SMS MONITOR</b> 」\n` +
       `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
-      `🟢 <b>ONLINE</b> • ⚡️ <b>ACTIVE</b>\n\n` +
-      `╭─ 🌟 <b>FEATURES</b>\n` +
-      `├ ⚡️ Auto OTP detection\n` +
-      `├ 🔥 Live SMS monitoring\n` +
-      `├ 🗝 One-tap copy\n` +
-      `├ 📊 Real-time statistics\n` +
-      `╰ 🌐 Multi-country support\n\n` +
-      `╭─ ⌨️ <b>COMMANDS</b>\n` +
+      `${ce("🟢")} <b>ONLINE</b> • ${ce("⚡️")} <b>ACTIVE</b>\n\n` +
+      `╭─ ${ce("🌟")} <b>FEATURES</b>\n` +
+      `├ ${ce("⚡️")} Auto OTP detection\n` +
+      `├ ${ce("🔥")} Live SMS monitoring\n` +
+      `├ ${ce("🗝")} One-tap copy\n` +
+      `├ ${ce("📊")} Real-time statistics\n` +
+      `╰ ${ce("🌐")} Multi-country support\n\n` +
+      `╭─ ${ce("⌨️")} <b>COMMANDS</b>\n` +
       `├ /stats  —  Live statistics\n` +
       `├ /status —  System health\n` +
       `╰ /help   —  Command guide\n\n` +
-      `✅ <i>Every new SMS arrives here instantly</i>`;
+      `${ce("✅")} <i>Every new SMS arrives here instantly</i>`;
     await bot.sendMessage(userId, welcome, { parse_mode: "HTML" });
   });
 
@@ -498,19 +546,19 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
   bot.onText(/\/help/, async (msg) => {
     if (!isAllowed(msg.from!.id)) return;
     const help =
-      `「 📖 <b>HELP & GUIDE</b> 」\n` +
+      `「 ${ce("📖")} <b>HELP & GUIDE</b> 」\n` +
       `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
-      `╭─ ⌨️ <b>COMMANDS</b>\n` +
+      `╭─ ${ce("⌨️")} <b>COMMANDS</b>\n` +
       `├ /start   →  Welcome screen\n` +
       `├ /stats   →  Live statistics\n` +
       `├ /status  →  System health\n` +
       `╰ /help    →  This guide\n\n` +
-      `╭─ 🖱 <b>BUTTON ACTIONS</b>\n` +
-      `├ 🗝  Copy OTP      →  tappable OTP code\n` +
-      `├ 📲  Copy Number   →  tappable phone number\n` +
-      `╰ 💬  Copy Message  →  full message\n\n` +
+      `╭─ ${ce("🖱")} <b>BUTTON ACTIONS</b>\n` +
+      `├ ${ce("🗝")}  Copy OTP      →  tappable OTP code\n` +
+      `├ ${ce("📲")}  Copy Number   →  tappable phone number\n` +
+      `╰ ${ce("💬")}  Copy Message  →  full message\n\n` +
       `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
-      `💡 <i>Tap any</i> <code>highlighted code</code> <i>to copy instantly</i>`;
+      `${ce("💡")} <i>Tap any</i> <code>highlighted code</code> <i>to copy instantly</i>`;
     await bot.sendMessage(msg.chat.id, help, { parse_mode: "HTML" });
   });
 
@@ -534,19 +582,19 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
   bot.onText(/\/status/, async (msg) => {
     if (!isAllowed(msg.from!.id)) return;
     const status =
-      `「 🛡 <b>SYSTEM HEALTH</b> 」\n` +
+      `「 ${ce("🛡")} <b>SYSTEM HEALTH</b> 」\n` +
       `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
-      `╭─ 🔍 <b>SERVICES</b>\n` +
-      `├ 🤖 Bot         🟢  <b>Online</b>\n` +
-      `├ 📡 SMS API     🟢  <b>Connected</b>\n` +
-      `╰ ⚡️ Poll rate   🟢  <b>Every 5 sec</b>\n\n` +
-      `╭─ 📊 <b>SESSION</b>\n` +
-      `├ 🔐 OTPs detected    →  <b>${otpCount}</b>\n` +
-      `├ 📩 SMS this session →  <b>${totalSmsToday}</b>\n` +
-      `├ 👥 Approved users   →  <b>${approvedUsers.size}</b>\n` +
-      `╰ ⏳ Pending requests →  <b>${pendingUsers.size}</b>\n` +
+      `╭─ ${ce("🔍")} <b>SERVICES</b>\n` +
+      `├ ${ce("🤖")} Bot         ${ce("🟢")}  <b>Online</b>\n` +
+      `├ ${ce("📡")} SMS API     ${ce("🟢")}  <b>Connected</b>\n` +
+      `╰ ${ce("⚡️")} Poll rate   ${ce("🟢")}  <b>Every 5 sec</b>\n\n` +
+      `╭─ ${ce("📊")} <b>SESSION</b>\n` +
+      `├ ${ce("🔐")} OTPs detected    →  <b>${otpCount}</b>\n` +
+      `├ ${ce("📩")} SMS this session →  <b>${totalSmsToday}</b>\n` +
+      `├ ${ce("👥")} Approved users   →  <b>${approvedUsers.size}</b>\n` +
+      `╰ ${ce("⏳")} Pending requests →  <b>${pendingUsers.size}</b>\n` +
       `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
-      `✅ <i>All systems operational</i>`;
+      `${ce("✅")} <i>All systems operational</i>`;
     await bot.sendMessage(msg.chat.id, status, { parse_mode: "HTML" });
   });
 
@@ -559,11 +607,11 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
       .join(", ") || "none";
 
     await bot.sendMessage(msg.chat.id,
-      `「 👥 <b>USER MANAGEMENT</b> 」\n` +
+      `「 ${ce("👥")} <b>USER MANAGEMENT</b> 」\n` +
       `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
-      `╭─ ✅ <b>Approved</b>\n` +
+      `╭─ ${ce("✅")} <b>Approved</b>\n` +
       `╰ ${escapeHtml(approvedList)}\n\n` +
-      `╭─ ⏳ <b>Pending</b>\n` +
+      `╭─ ${ce("⏳")} <b>Pending</b>\n` +
       `╰ ${escapeHtml(pendingList)}\n` +
       `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄`,
       { parse_mode: "HTML" }
