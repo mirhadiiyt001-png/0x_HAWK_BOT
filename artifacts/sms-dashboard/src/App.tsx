@@ -284,32 +284,131 @@ function Pagination({ page, total, onChange, from, to, count }: {
   const pages: number[] = [];
   const s = Math.max(1, page - 2); const e = Math.min(total, s + 4);
   for (let i = s; i <= e; i++) pages.push(i);
+  const rangeEnd = Math.min(to, count);
   return (
-    <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/5">
-      <span className="text-xs text-slate-500 font-mono">{from + 1}–{Math.min(to, count)} / {count}</span>
-      <div className="flex items-center gap-1">
-        <PgBtn onClick={() => onChange(1)} disabled={page === 1}><ChevronsLeft size={13}/></PgBtn>
-        <PgBtn onClick={() => onChange(page - 1)} disabled={page === 1}><ChevronLeft size={13}/></PgBtn>
-        {pages.map(p => (
-          <button key={p} onClick={() => onChange(p)}
-            className={`w-7 h-7 rounded-lg text-xs font-semibold transition-all ${
-              p === page ? "bg-violet-500/20 border border-violet-400/30 text-violet-300"
-                        : "text-slate-500 hover:text-white hover:bg-white/5"}`}>{p}</button>
-        ))}
-        {e < total && <><span className="text-slate-600 text-xs px-0.5">…</span>
-          <button onClick={() => onChange(total)} className="w-7 h-7 rounded-lg text-xs text-slate-500 hover:text-white hover:bg-white/5">{total}</button></>}
-        <PgBtn onClick={() => onChange(page + 1)} disabled={page === total}><ChevronRight size={13}/></PgBtn>
-        <PgBtn onClick={() => onChange(total)} disabled={page === total}><ChevronsRight size={13}/></PgBtn>
+    <div className="mt-5 pt-4 border-t border-white/[.04]">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+        {/* Range indicator */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/[.06]"
+            style={{ background: "rgba(255,255,255,.025)" }}>
+            <span className="text-[11px] font-mono font-bold text-white/70">{from + 1}–{rangeEnd}</span>
+            <span className="text-[10px] text-white/20 font-light">/</span>
+            <span className="text-[11px] font-mono font-semibold text-violet-400/80">{count}</span>
+          </div>
+          <span className="text-[10px] text-white/20 hidden sm:block">
+            page {page} of {total}
+          </span>
+        </div>
+
+        {/* Page buttons */}
+        <div className="flex items-center gap-1 p-1 rounded-2xl border border-white/[.05]"
+          style={{ background: "rgba(255,255,255,.018)" }}>
+          <PgBtn onClick={() => onChange(1)} disabled={page === 1} title="First">
+            <ChevronsLeft size={12}/>
+          </PgBtn>
+          <PgBtn onClick={() => onChange(page - 1)} disabled={page === 1} title="Previous">
+            <ChevronLeft size={12}/>
+          </PgBtn>
+
+          <div className="w-px h-4 mx-0.5" style={{ background: "rgba(255,255,255,.07)" }}/>
+
+          {pages.map(p => (
+            <button key={p} onClick={() => onChange(p)}
+              className="relative w-8 h-8 rounded-xl text-[11px] font-bold transition-all duration-200 active:scale-95"
+              style={p === page ? {
+                background: "linear-gradient(135deg,rgba(139,92,246,.35),rgba(99,102,241,.25))",
+                border: "1px solid rgba(139,92,246,.4)",
+                color: "#c4b5fd",
+                boxShadow: "0 0 16px rgba(139,92,246,.25), inset 0 1px 0 rgba(255,255,255,.08)"
+              } : {
+                background: "transparent",
+                border: "1px solid transparent",
+                color: "rgba(148,163,184,.55)"
+              }}>
+              {p}
+            </button>
+          ))}
+
+          {e < total && (
+            <>
+              <span className="text-[10px] text-white/20 px-0.5 select-none">···</span>
+              <button onClick={() => onChange(total)}
+                className="w-8 h-8 rounded-xl text-[11px] font-bold transition-all duration-200 active:scale-95"
+                style={{ background: "transparent", border: "1px solid transparent", color: "rgba(148,163,184,.55)" }}>
+                {total}
+              </button>
+            </>
+          )}
+
+          <div className="w-px h-4 mx-0.5" style={{ background: "rgba(255,255,255,.07)" }}/>
+
+          <PgBtn onClick={() => onChange(page + 1)} disabled={page === total} title="Next">
+            <ChevronRight size={12}/>
+          </PgBtn>
+          <PgBtn onClick={() => onChange(total)} disabled={page === total} title="Last">
+            <ChevronsRight size={12}/>
+          </PgBtn>
+        </div>
       </div>
     </div>
   );
 }
-function PgBtn({ children, disabled, onClick }: { children: React.ReactNode; disabled?: boolean; onClick: () => void }) {
+function PgBtn({ children, disabled, onClick, title }: { children: React.ReactNode; disabled?: boolean; onClick: () => void; title?: string }) {
   return (
-    <button onClick={onClick} disabled={disabled}
-      className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/5 disabled:opacity-25 disabled:cursor-not-allowed transition-all">
+    <button onClick={onClick} disabled={disabled} title={title}
+      className="w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed"
+      style={{ color: "rgba(148,163,184,.6)" }}
+      onMouseEnter={e => { if (!disabled) (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,.06)"; (e.currentTarget as HTMLButtonElement).style.color = "#e2e8f0"; }}
+      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(148,163,184,.6)"; }}>
       {children}
     </button>
+  );
+}
+
+// ── Footer ────────────────────────────────────────────────────────────────────
+function AppFooter() {
+  const year = new Date().getFullYear();
+  return (
+    <footer className="mt-6 pb-8 px-4">
+      {/* Gradient divider */}
+      <div className="relative flex items-center justify-center mb-5">
+        <div className="absolute inset-x-0 h-px"
+          style={{ background: "linear-gradient(to right,transparent,rgba(139,92,246,.22),rgba(99,102,241,.18),transparent)" }}/>
+        <div className="relative px-3 py-0.5 rounded-full border border-white/[.06] flex items-center gap-1.5"
+          style={{ background: "rgba(6,6,16,.9)" }}>
+          <div className="w-1 h-1 rounded-full bg-violet-500/60"/>
+          <div className="w-1 h-1 rounded-full bg-indigo-500/40"/>
+          <div className="w-1 h-1 rounded-full bg-sky-500/30"/>
+        </div>
+      </div>
+
+      {/* Footer content */}
+      <div className="flex flex-col items-center gap-2">
+        <div className="flex items-center gap-3">
+          {/* Brand pill */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-2xl border border-white/[.06]"
+            style={{ background: "linear-gradient(135deg,rgba(139,92,246,.1),rgba(99,102,241,.06))" }}>
+            <span className="text-[9px] font-medium tracking-[.18em] uppercase text-white/25">Built by</span>
+            <span className="text-[12px] font-black tracking-tight"
+              style={{ background: "linear-gradient(90deg,#a78bfa,#818cf8,#38bdf8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              Shadow Logic
+            </span>
+            <span className="text-[13px] leading-none">🚀</span>
+          </div>
+
+          {/* Year pill */}
+          <div className="px-2.5 py-1.5 rounded-xl border border-white/[.06]"
+            style={{ background: "rgba(255,255,255,.025)" }}>
+            <span className="text-[9px] font-mono font-semibold text-white/30 tracking-widest">© {year}</span>
+          </div>
+        </div>
+
+        <p className="text-[9px] text-white/15 tracking-[.12em] uppercase font-medium">
+          Zone SMS · Real-time Monitoring
+        </p>
+      </div>
+    </footer>
   );
 }
 
@@ -791,20 +890,7 @@ export default function App() {
               )}
             </div>
 
-            <footer className="mt-2 pb-6 flex flex-col items-center gap-2">
-              <div className="w-full h-px" style={{ background: "linear-gradient(to right,transparent,rgba(139,92,246,.18),transparent)" }}/>
-              <div className="flex items-center gap-2 pt-1">
-                <span className="text-[10px] text-white/25 font-medium tracking-widest uppercase">Powered by</span>
-                <span className="text-[11px] font-black tracking-wide"
-                  style={{ background: "linear-gradient(90deg,#a78bfa,#818cf8,#38bdf8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                  Shadow Logic
-                </span>
-                <span className="text-[11px]">🚀</span>
-                <span className="text-[9px] text-white/40 font-mono border border-white/15 px-1.5 py-0.5 rounded-md">
-                  © {new Date().getFullYear()}
-                </span>
-              </div>
-            </footer>
+            <AppFooter/>
           </motion.div>
         )}
 
@@ -899,20 +985,7 @@ export default function App() {
               )}
             </div>
 
-            <footer className="mt-2 pb-6 flex flex-col items-center gap-2">
-              <div className="w-full h-px" style={{ background: "linear-gradient(to right,transparent,rgba(139,92,246,.18),transparent)" }}/>
-              <div className="flex items-center gap-2 pt-1">
-                <span className="text-[10px] text-white/25 font-medium tracking-widest uppercase">Powered by</span>
-                <span className="text-[11px] font-black tracking-wide"
-                  style={{ background: "linear-gradient(90deg,#a78bfa,#818cf8,#38bdf8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                  Shadow Logic
-                </span>
-                <span className="text-[11px]">🚀</span>
-                <span className="text-[9px] text-white/40 font-mono border border-white/15 px-1.5 py-0.5 rounded-md">
-                  © {new Date().getFullYear()}
-                </span>
-              </div>
-            </footer>
+            <AppFooter/>
           </motion.div>
         )}
       </AnimatePresence>
