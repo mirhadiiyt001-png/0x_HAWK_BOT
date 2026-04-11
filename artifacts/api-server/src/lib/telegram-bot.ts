@@ -175,20 +175,19 @@ function formatTime(ts: string): string {
 function formatOtpMessage(sms: SmsMessage): string {
   const otp = extractOtp(sms.body)!;
   return (
-    `${ce("⚡️")} ${ce("🔐")} <b>OTP INTERCEPTED</b> ${ce("🔐")} ${ce("⚡️")}\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-    `${ce("🗝")} <b>ONE-TIME PASSWORD</b>\n` +
-    `<code>${escapeHtml(otp)}</code>\n` +
-    `<i>⬆️ Tap code to copy instantly</i>\n\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-    `╭─ ${ce("📝")} <b>SENDER INFO</b>\n` +
-    `├ ${ce("📲")} <b>Number</b>  <code>${escapeHtml(sms.phone)}</code>\n` +
-    `├ ${ce("⏰")} <b>Time</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
-    `├ ${ce("🛰")} <b>SIM</b>     ${escapeHtml(sms.sim)}\n` +
-    `├ ${ce("🖥")} <b>Device</b>  ${escapeHtml(sms.device)}\n` +
-    `╰ ${ce("💰")} <b>Plan</b>    ${escapeHtml(sms.plan)}\n\n` +
-    `╭─ ${ce("💬")} <b>ORIGINAL MESSAGE</b>\n` +
-    `╰ <i>${escapeHtml(sms.body)}</i>`
+    `${ce("🦎")} <b>OTP INTERCEPTED</b> ${ce("🦎")}\n` +
+    `——————————————————————\n\n` +
+    `╭─ ${ce("✨")} <b>DETAILS</b>\n` +
+    `├ ${ce("📲")} <b>Phone:</b>   <code>${escapeHtml(sms.phone)}</code>\n` +
+    `├ ${ce("🔔")} <b>Time:</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
+    `├ ${ce("🛰")} <b>SIM:</b>     ${escapeHtml(sms.sim)}\n` +
+    `├ ${ce("🖥")} <b>Device:</b>  ${escapeHtml(sms.device)}\n` +
+    `╰ ${ce("💰")} <b>Plan:</b>    ${escapeHtml(sms.plan)}\n\n` +
+    `╭─ ${ce("💬")} <b>MESSAGE</b>\n` +
+    `╰ <i>${escapeHtml(sms.body)}</i>\n\n` +
+    `╭─ ${ce("🗝")} <b>OTP CODE</b>\n` +
+    `╰ <code>${escapeHtml(otp)}</code>\n\n` +
+    `${ce("⬆️")} <i>Tap the code to copy</i>`
   );
 }
 
@@ -533,10 +532,10 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
     const welcome =
       `「 ${ce("🚀")} <b>ZONE SMS MONITOR</b> 」\n` +
       `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
-      `${ce("🟢")} <b>ONLINE</b> • ${ce("⚡️")} <b>ACTIVE</b>\n\n` +
-      `╭─ ${ce("🌟")} <b>FEATURES</b>\n` +
-      `├ ${ce("⚡️")} Auto OTP detection\n` +
-      `├ ${ce("🔥")} Live SMS monitoring\n` +
+      `${ce("📶")} <b>ONLINE</b> • ${ce("💎")} <b>ACTIVE</b>\n\n` +
+      `╭─ ${ce("⭐️")} <b>FEATURES</b>\n` +
+      `├ ${ce("💎")} Auto OTP detection\n` +
+      `├ ${ce("☠️")} Live SMS monitoring\n` +
       `├ ${ce("🗝")} One-tap copy\n` +
       `├ ${ce("📊")} Real-time statistics\n` +
       `╰ ${ce("🌐")} Multi-country support\n\n` +
