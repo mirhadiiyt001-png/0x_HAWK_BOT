@@ -129,15 +129,42 @@ function flag(phone: string): string {
   return "🌐";
 }
 
+// Common English words to skip when extracting OTP codes
+const SKIP_WORDS = new Set(["code","otp","your","the","with","this","that","not","any","one","for","and","use","share","pin","key","from","anyone","verify","will","has","via","can","our","per","all"]);
+
 function extractOtp(text: string): string | null {
-  const pats = [
-    /(?:OTP|code|verify|confirm|auth|pin|رمز|کد|пароль|код|senha|doğrulama)[^0-9]*(\d{4,8})/i,
-    /(\d{4,8})[^0-9]*(?:OTP|code|verify|код)/i,
-    /(?:is|:|=|-)\s*(\d{6})\b/,
-    /(?<!\d)(\d{6})(?!\d)/,
-    /(?<!\d)(\d{4})(?!\d)/,
-  ];
-  for (const p of pats) { const m = text.match(p); if (m?.[1]) return m[1]; }
+  // 1. Alphanumeric/numeric token at very end of string (after colon, dash, space)
+  //    e.g. "Do not share your code with anyone: fmerv"  → "fmerv"
+  //    e.g. "Your OTP is: 123456"  → "123456"
+  const endToken = /[:\-=]\s*([A-Za-z0-9]{4,10})\s*[.!]?\s*$/;
+  const m1 = text.match(endToken);
+  if (m1?.[1] && !SKIP_WORDS.has(m1[1].toLowerCase())) return m1[1];
+
+  // 2. "is WORD" pattern near end: "Your OTP is 654321"
+  const isPattern = /\bis\s+([A-Za-z0-9]{4,10})\b(?:\s*[.!]?\s*$|\s+(?:valid|expire|do\s+not))/i;
+  const m2 = text.match(isPattern);
+  if (m2?.[1] && !SKIP_WORDS.has(m2[1].toLowerCase())) return m2[1];
+
+  // 3. OTP/PIN/PASS keyword immediately followed by alphanumeric (not a common word)
+  const keyDirect = /\b(?:OTP|PIN|passcode|password|Token|кода?|رمز|کد)\b[^A-Za-z0-9]{0,5}([A-Za-z0-9]{4,10})/i;
+  const m3 = text.match(keyDirect);
+  if (m3?.[1] && !SKIP_WORDS.has(m3[1].toLowerCase())) return m3[1];
+
+  // 4. Pure 6-digit number anywhere
+  const num6 = /\b(\d{6})\b/;
+  const m4 = text.match(num6);
+  if (m4?.[1]) return m4[1];
+
+  // 5. Pure 4-digit number anywhere
+  const num4 = /\b(\d{4})\b/;
+  const m5 = text.match(num4);
+  if (m5?.[1]) return m5[1];
+
+  // 6. Standalone alphanumeric token (4-8 chars, mix of letters+digits) as fallback
+  const alphaNum = /\b([A-Z]{2,}[0-9]{2,}|[0-9]{2,}[A-Z]{2,})\b/i;
+  const m6 = text.match(alphaNum);
+  if (m6?.[1] && m6[1].length <= 8) return m6[1];
+
   return null;
 }
 
@@ -375,7 +402,9 @@ export default function App() {
         if (!Array.isArray(row) || row.length < 7) continue;
         const phone = String(row[2]); const body = String(row[7] || "");
         if (phone === "0" || phone === "" || body === "0" || body === "") continue;
-        const isOtp = extractOtp(body) !== null;
+        // isOtp: API flag at index 6 OR our own pattern detection
+        const apiOtpFlag = Number(row[6]) === 1;
+        const isOtp = apiOtpFlag || extractOtp(body) !== null;
         parsed.push({ timestamp: String(row[0]), sim: String(row[1]), phone, device: String(row[3]), plan: String(row[5] || row[4] || ""), body, isOtp });
       }
       setRows(parsed); setTotalSms(parseInt(String(j.data?.iTotalRecords || parsed.length)));
@@ -478,7 +507,7 @@ export default function App() {
                 </svg>
               </div>
             </div>
-            <div className="hidden sm:block leading-tight">
+            <div className="leading-tight">
               <p className="text-[13px] font-bold text-white tracking-tight">{bot ? `@${bot.username}` : "SMS Monitor"}</p>
               <p className="text-[9px] tracking-[.18em] uppercase" style={{ color: "rgba(139,92,246,.7)" }}>Zone SMS</p>
             </div>
@@ -486,14 +515,18 @@ export default function App() {
 
           {/* Tabs */}
           <div className="flex gap-1 p-1 rounded-xl border border-white/[.06]" style={{ background: "rgba(255,255,255,.03)" }}>
-            {(["messages","numbers"] as const).map(t => (
-              <button key={t} onClick={() => setTab(t)}
-                className={`flex items-center gap-1.5 text-[11px] font-bold px-4 py-1.5 rounded-lg transition-all whitespace-nowrap ${
-                  tab === t ? "text-white shadow-sm" : "text-white/25 hover:text-white/50"}`}
-                style={tab === t ? { background: "linear-gradient(135deg,rgba(139,92,246,.3),rgba(99,102,241,.2))", boxShadow: "0 0 16px rgba(139,92,246,.2)" } : {}}>
-                {t === "messages" ? "📨 Messages" : "📋 Numbers"}
-              </button>
-            ))}
+            <button onClick={() => setTab("messages")}
+              className={`flex items-center gap-1.5 text-[11px] font-bold px-4 py-1.5 rounded-lg transition-all whitespace-nowrap ${
+                tab === "messages" ? "text-white shadow-sm" : "text-white/25 hover:text-white/50"}`}
+              style={tab === "messages" ? { background: "linear-gradient(135deg,rgba(139,92,246,.3),rgba(99,102,241,.2))", boxShadow: "0 0 16px rgba(139,92,246,.2)" } : {}}>
+              <IconEnvelope className="w-3.5 h-3.5 shrink-0"/> Messages
+            </button>
+            <button onClick={() => setTab("numbers")}
+              className={`flex items-center gap-1.5 text-[11px] font-bold px-4 py-1.5 rounded-lg transition-all whitespace-nowrap ${
+                tab === "numbers" ? "text-white shadow-sm" : "text-white/25 hover:text-white/50"}`}
+              style={tab === "numbers" ? { background: "linear-gradient(135deg,rgba(139,92,246,.3),rgba(99,102,241,.2))", boxShadow: "0 0 16px rgba(139,92,246,.2)" } : {}}>
+              <IconPhoneList className="w-3.5 h-3.5 shrink-0"/> Numbers
+            </button>
           </div>
 
           {/* Right */}
