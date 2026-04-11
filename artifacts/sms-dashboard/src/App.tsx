@@ -1,471 +1,733 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Search, RefreshCw, Copy, Check, PhoneOff,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ChevronDown,
+} from "lucide-react";
+import { Toaster, toast } from "sonner";
+import "./index.css";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API_BASE     = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+const SMS_API      = `${API_BASE}/api/proxy/sms`;
+const NUMBERS_API  = `${API_BASE}/api/proxy/numbers`;
+const STATUSES_API = `${API_BASE}/api/proxy/statuses`;
+const BOT_INFO_API = `${API_BASE}/api/proxy/bot-info`;
+const PER_PAGE     = 25;
 
 interface SmsRow {
-  timestamp: string;
-  sim: string;
-  phone: string;
-  device: string;
-  plan: string;
-  body: string;
-  isOtp: boolean;
+  timestamp: string; sim: string; phone: string;
+  device: string; plan: string; body: string; isOtp: boolean;
 }
 
-interface Stats {
-  totalRecords: string;
-  totalDisplayed: string;
-  otpCount: number;
-  recent: SmsRow[];
-  lastUpdated: string;
+type Status = "not_tried" | "registered" | "unregistered" | "already_other";
+interface NumItem { sim: string; phone: string; status: Status; }
+interface BotInfo  { username: string; }
+
+const STATUS_CFG: Record<Status, { label: string; color: string; bg: string; border: string }> = {
+  not_tried:     { label: "Not Tried",    color: "#64748b", bg: "rgba(100,116,139,.1)", border: "rgba(100,116,139,.3)" },
+  registered:    { label: "Registered",   color: "#10b981", bg: "rgba(16,185,129,.1)",  border: "rgba(16,185,129,.3)"  },
+  unregistered:  { label: "Unregistered", color: "#f43f5e", bg: "rgba(244,63,94,.1)",   border: "rgba(244,63,94,.3)"   },
+  already_other: { label: "Already Other",color: "#a855f7", bg: "rgba(168,85,247,.1)",  border: "rgba(168,85,247,.3)"  },
+};
+
+async function fetchServerStatuses(): Promise<Record<string, Status>> {
+  try {
+    const r = await fetch(STATUSES_API);
+    if (!r.ok) return {};
+    return (await r.json()) as Record<string, Status>;
+  } catch { return {}; }
 }
 
-function useStats() {
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [error, setError] = useState(false);
-  const fetchStats = async () => {
-    try {
-      const res = await fetch(`${BASE}/api/sms-stats`);
-      if (!res.ok) throw new Error("fail");
-      setStats(await res.json());
-      setError(false);
-    } catch {
-      setError(true);
-    }
-  };
-  useEffect(() => {
-    fetchStats();
-    const id = setInterval(fetchStats, 5000);
-    return () => clearInterval(id);
-  }, []);
-  return { stats, error };
+async function saveServerStatus(phone: string, status: Status): Promise<void> {
+  await fetch(STATUSES_API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone, status }),
+  });
 }
 
-function useCountUp(target: number, duration = 800) {
-  const [val, setVal] = useState(0);
-  const prev = useRef(0);
-  useEffect(() => {
-    if (target === prev.current) return;
-    const start = prev.current;
-    const diff = target - start;
-    const steps = 30;
-    const stepMs = duration / steps;
-    let i = 0;
-    const timer = setInterval(() => {
-      i++;
-      setVal(Math.round(start + (diff * i) / steps));
-      if (i >= steps) { clearInterval(timer); prev.current = target; }
-    }, stepMs);
-    return () => clearInterval(timer);
-  }, [target, duration]);
-  return val;
+function flag(phone: string): string {
+  const p = phone.replace(/\D/g, "");
+  const map: [string, string][] = [
+    ["1","🇺🇸"],["44","🇬🇧"],["49","🇩🇪"],["33","🇫🇷"],["34","🇪🇸"],["39","🇮🇹"],
+    ["31","🇳🇱"],["32","🇧🇪"],["41","🇨🇭"],["43","🇦🇹"],["45","🇩🇰"],["46","🇸🇪"],
+    ["47","🇳🇴"],["48","🇵🇱"],["358","🇫🇮"],["359","🇧🇬"],["36","🇭🇺"],["40","🇷🇴"],
+    ["380","🇺🇦"],["381","🇷🇸"],["385","🇭🇷"],["386","🇸🇮"],["420","🇨🇿"],["421","🇸🇰"],
+    ["370","🇱🇹"],["371","🇱🇻"],["372","🇪🇪"],["375","🇧🇾"],["351","🇵🇹"],["353","🇮🇪"],
+    ["7","🇷🇺"],["86","🇨🇳"],["81","🇯🇵"],["82","🇰🇷"],["84","🇻🇳"],["91","🇮🇳"],
+    ["92","🇵🇰"],["90","🇹🇷"],["62","🇮🇩"],["60","🇲🇾"],["65","🇸🇬"],["66","🇹🇭"],
+    ["966","🇸🇦"],["971","🇦🇪"],["98","🇮🇷"],["20","🇪🇬"],["27","🇿🇦"],["55","🇧🇷"],
+    ["52","🇲🇽"],["54","🇦🇷"],["61","🇦🇺"],["64","🇳🇿"],
+  ];
+  for (const [prefix, emoji] of map.sort((a, b) => b[0].length - a[0].length)) {
+    if (p.startsWith(prefix)) return emoji;
+  }
+  return "🌐";
 }
 
 function extractOtp(text: string): string | null {
-  const patterns = [
-    /(?:OTP|otp|code|رمز|کد|verification|verify|confirm|auth|pin|passcode|пароль|код|senha)[^0-9]*(\d{4,8})/i,
-    /(\d{4,8})[^0-9]*(?:OTP|otp|code|verify|confirm|пароль|код)/i,
-    /(?:is|:|-|=)\s*(\d{6})\b/,
+  const pats = [
+    /(?:OTP|code|verify|confirm|auth|pin|رمز|کد|пароль|код|senha|doğrulama)[^0-9]*(\d{4,8})/i,
+    /(\d{4,8})[^0-9]*(?:OTP|code|verify|код)/i,
+    /(?:is|:|=|-)\s*(\d{6})\b/,
     /(?<!\d)(\d{6})(?!\d)/,
     /(?<!\d)(\d{4})(?!\d)/,
   ];
-  for (const p of patterns) {
-    const m = text.match(p);
-    if (m?.[1]) return m[1];
-  }
+  for (const p of pats) { const m = text.match(p); if (m?.[1]) return m[1]; }
   return null;
 }
 
-// Parse API timestamp as UTC (API timestamps have no timezone marker — treat as UTC)
 function parseTs(ts: string): Date {
-  // Append "Z" so browser treats it as UTC, then displays in user's local timezone
-  const normalized = ts.replace(" ", "T");
-  return new Date(normalized.endsWith("Z") ? normalized : normalized + "Z");
+  const n = ts.replace(" ", "T");
+  return new Date(n.endsWith("Z") ? n : n + "Z");
 }
-
-// "11:08 AM" — just the time portion
-function formatClock(ts: string): string {
-  const d = parseTs(ts);
-  if (isNaN(d.getTime())) return ts.substring(11, 16);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true });
-}
-
-// "Apr 2" — just the date portion (short)
-function formatDate(ts: string): string {
-  const d = parseTs(ts);
-  if (isNaN(d.getTime())) return ts.substring(0, 10);
-  return d.toLocaleDateString([], { month: "short", day: "numeric" });
-}
-
-// "2m ago" / "just now"
 function timeAgo(ts: string): string {
-  const diff = Math.floor((Date.now() - parseTs(ts).getTime()) / 1000);
-  if (diff < 30) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
+  const d = Math.floor((Date.now() - parseTs(ts).getTime()) / 1000);
+  if (d < 60) return "just now";
+  if (d < 3600) return `${Math.floor(d / 60)}m ago`;
+  if (d < 86400) return `${Math.floor(d / 3600)}h ago`;
+  return `${Math.floor(d / 86400)}d ago`;
+}
+function clockStr(ts: string): string {
+  const d = parseTs(ts);
+  return isNaN(d.getTime()) ? ts.slice(11, 16)
+    : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true });
 }
 
-// Hook: re-render every 10s so relative times stay fresh
-function useNow() {
-  const [, setTick] = useState(0);
+function useCountUp(target: number) {
+  const [v, setV] = useState(0);
+  const prev = useRef(0);
   useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 10000);
+    if (target === prev.current) return;
+    const start = prev.current; const diff = target - start;
+    let i = 0;
+    const id = setInterval(() => {
+      i++; setV(Math.round(start + diff * i / 30));
+      if (i >= 30) { clearInterval(id); prev.current = target; }
+    }, 20);
     return () => clearInterval(id);
-  }, []);
+  }, [target]);
+  return v;
 }
 
-function OtpBadge({ otp }: { otp: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = () => {
-    navigator.clipboard.writeText(otp);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-  return (
-    <button onClick={copy} title="Tap to copy OTP"
-      className="inline-flex items-center gap-3 mb-2.5 px-3.5 py-2 rounded-xl border transition-all duration-200 cursor-pointer active:scale-95"
-      style={copied
-        ? { background: "linear-gradient(135deg, rgba(52,211,153,0.15), rgba(16,185,129,0.08))", borderColor: "rgba(52,211,153,0.3)", boxShadow: "0 0 20px rgba(52,211,153,0.12)" }
-        : { background: "linear-gradient(135deg, rgba(139,92,246,0.12), rgba(99,102,241,0.06))", borderColor: "rgba(139,92,246,0.2)", boxShadow: "0 0 20px rgba(139,92,246,0.08)" }
-      }>
-      {copied ? (
-        <>
-          <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-emerald-400/70">Copied</span>
-          <svg className="w-4 h-4 text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
-          </svg>
-        </>
-      ) : (
-        <>
-          <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-violet-400/60">OTP</span>
-          <span className="text-xl font-bold tracking-[0.25em] font-mono text-violet-200">{otp}</span>
-          <svg className="w-3.5 h-3.5 text-violet-400/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-          </svg>
-        </>
-      )}
-    </button>
-  );
+function useCountUp2(target: number) {
+  const [v, setV] = useState(0);
+  const prev = useRef(0);
+  useEffect(() => {
+    if (target === prev.current) return;
+    const start = prev.current; const diff = target - start; let i = 0;
+    const id = setInterval(() => { i++; setV(Math.round(start + diff * i / 30)); if (i >= 30) { clearInterval(id); prev.current = target; } }, 20);
+    return () => clearInterval(id);
+  }, [target]);
+  return v;
 }
 
-function CopyBtn({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
-  const [state, setState] = useState<"idle" | "copied">("idle");
-  const copy = () => {
-    navigator.clipboard.writeText(value);
-    setState("copied");
-    setTimeout(() => setState("idle"), 2000);
-  };
-  return (
-    <button onClick={copy} className={`group/btn relative flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg border transition-all duration-300 overflow-hidden ${
-      state === "copied"
-        ? "bg-emerald-500/20 border-emerald-400/30 text-emerald-300"
-        : accent
-          ? "bg-violet-500/15 border-violet-400/25 text-violet-300 hover:bg-violet-500/25 hover:border-violet-400/40"
-          : "bg-white/[0.06] border-white/10 text-white/50 hover:bg-white/10 hover:text-white/80 hover:border-white/20"
-    }`}>
-      {state === "copied" ? (
-        <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>Copied!</>
-      ) : (
-        <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>{label}</>
-      )}
-    </button>
-  );
-}
-
-function StatCard({ label, value, icon, gradient, iconColor, textColor }: {
-  label: string; value: string; icon: React.ReactNode;
-  gradient: string; iconColor: string; textColor: string;
+function Pagination({ page, total, onChange, from, to, count }: {
+  page: number; total: number; onChange: (p: number) => void;
+  from: number; to: number; count: number;
 }) {
-  const num = parseInt(value.replace(/\D/g, "")) || 0;
-  const animated = useCountUp(num);
-  const display = isNaN(parseInt(value)) ? value : animated.toString();
+  const pages: number[] = [];
+  const s = Math.max(1, page - 2); const e = Math.min(total, s + 4);
+  for (let i = s; i <= e; i++) pages.push(i);
   return (
-    <div className={`relative rounded-2xl border overflow-hidden p-5 ${gradient}`}>
-      <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent pointer-events-none" />
-      <div className={`inline-flex p-2 rounded-xl ${iconColor} mb-4`}>{icon}</div>
-      <div className={`text-3xl font-bold tracking-tight tabular-nums ${textColor}`}>{display}</div>
-      <div className="text-xs text-white/30 mt-1 font-medium">{label}</div>
+    <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/5">
+      <span className="text-xs text-slate-500 font-mono">{from + 1}–{Math.min(to, count)} / {count}</span>
+      <div className="flex items-center gap-1">
+        <PgBtn onClick={() => onChange(1)} disabled={page === 1}><ChevronsLeft size={13}/></PgBtn>
+        <PgBtn onClick={() => onChange(page - 1)} disabled={page === 1}><ChevronLeft size={13}/></PgBtn>
+        {pages.map(p => (
+          <button key={p} onClick={() => onChange(p)}
+            className={`w-7 h-7 rounded-lg text-xs font-semibold transition-all ${
+              p === page ? "bg-violet-500/20 border border-violet-400/30 text-violet-300"
+                        : "text-slate-500 hover:text-white hover:bg-white/5"}`}>{p}</button>
+        ))}
+        {e < total && <><span className="text-slate-600 text-xs px-0.5">…</span>
+          <button onClick={() => onChange(total)} className="w-7 h-7 rounded-lg text-xs text-slate-500 hover:text-white hover:bg-white/5">{total}</button></>}
+        <PgBtn onClick={() => onChange(page + 1)} disabled={page === total}><ChevronRight size={13}/></PgBtn>
+        <PgBtn onClick={() => onChange(total)} disabled={page === total}><ChevronsRight size={13}/></PgBtn>
+      </div>
+    </div>
+  );
+}
+function PgBtn({ children, disabled, onClick }: { children: React.ReactNode; disabled?: boolean; onClick: () => void }) {
+  return (
+    <button onClick={onClick} disabled={disabled}
+      className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/5 disabled:opacity-25 disabled:cursor-not-allowed transition-all">
+      {children}
+    </button>
+  );
+}
+
+function OtpCode({ otp }: { otp: string }) {
+  const [done, setDone] = useState(false);
+  const copy = () => { navigator.clipboard.writeText(otp); setDone(true); setTimeout(() => setDone(false), 2000); };
+  return (
+    <button onClick={copy}
+      className="group flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all duration-200 active:scale-[.97] w-full"
+      style={done
+        ? { background: "linear-gradient(135deg,rgba(16,185,129,.15),rgba(52,211,153,.08))", borderColor: "rgba(52,211,153,.3)", boxShadow: "0 0 24px rgba(52,211,153,.1)" }
+        : { background: "linear-gradient(135deg,rgba(139,92,246,.18),rgba(99,102,241,.1))", borderColor: "rgba(139,92,246,.3)", boxShadow: "0 0 24px rgba(139,92,246,.12)" }}>
+      <span className={`text-[9px] font-black uppercase tracking-widest shrink-0 ${done ? "text-emerald-400" : "text-violet-400/70"}`}>
+        {done ? "✓" : "OTP"}
+      </span>
+      <span className={`text-2xl sm:text-3xl font-black tracking-[.22em] font-mono ${done ? "text-emerald-300" : "text-white"}`}>{otp}</span>
+      <span className={`ml-auto opacity-50 group-hover:opacity-100 transition-opacity shrink-0 ${done ? "text-emerald-400" : "text-violet-400"}`}>
+        {done ? <Check size={15}/> : <Copy size={15}/>}
+      </span>
+    </button>
+  );
+}
+
+function CopyPill({ label, value, primary }: { label: string; value: string; primary?: boolean }) {
+  const [ok, setOk] = useState(false);
+  const go = () => { navigator.clipboard.writeText(value); setOk(true); setTimeout(() => setOk(false), 1800); };
+  return (
+    <button onClick={go}
+      className={`flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border transition-all ${
+        ok ? "bg-emerald-500/15 border-emerald-400/25 text-emerald-300"
+          : primary ? "bg-violet-500/12 border-violet-400/20 text-violet-300 hover:bg-violet-500/22"
+          : "bg-white/[.05] border-white/10 text-white/45 hover:bg-white/10 hover:text-white/75"}`}>
+      {ok ? <><Check size={11}/>Copied</> : <><Copy size={11}/>{label}</>}
+    </button>
+  );
+}
+
+function StatusDrop({ status, phone, onChange }: { status: Status; phone: string; onChange: (p: string, s: Status) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const cfg = STATUS_CFG[status];
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+  return (
+    <div className="relative" ref={ref}>
+      <button onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition-all hover:brightness-110"
+        style={{ background: cfg.bg, borderColor: cfg.border, color: cfg.color }}>
+        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: cfg.color }}/>
+        <span className="hidden sm:inline">{cfg.label}</span>
+        <ChevronDown size={12} className={`transition-transform ${open ? "rotate-180" : ""}`}/>
+      </button>
+      {open && (
+        <div className="absolute top-full right-0 mt-1 w-44 rounded-xl border border-white/10 p-1 z-50 shadow-2xl"
+          style={{ background: "rgba(15,15,25,.98)", backdropFilter: "blur(20px)" }}>
+          {(Object.entries(STATUS_CFG) as [Status, typeof STATUS_CFG[Status]][]).map(([k, v]) => (
+            <button key={k} onClick={() => { setOpen(false); if (k !== status) onChange(phone, k); }}
+              className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all text-left">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: v.color }}/>
+              {v.label}
+              {k === status && <Check size={12} className="ml-auto text-violet-400"/>}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
+function NumRow({ item, idx, isNew, onStatus }: {
+  item: NumItem; idx: number; isNew: boolean; onStatus: (p: string, s: Status) => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const cfg = STATUS_CFG[item.status];
+  const copy = async () => {
+    await navigator.clipboard.writeText(item.phone);
+    setCopied(true);
+    toast.success("Copied!", { description: item.phone, duration: 1500 });
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <motion.div
+      className={`flex items-center gap-2 sm:gap-3 px-3 py-2.5 rounded-xl border-l-[3px] transition-all hover:bg-white/[.03] ${isNew ? "animate-pulse-once" : ""}`}
+      style={{ borderLeftColor: item.status !== "not_tried" ? cfg.color : "transparent" }}
+      initial={isNew ? { opacity: 0, x: -8 } : false} animate={{ opacity: 1, x: 0 }}>
+      <span className="w-6 h-6 rounded-md bg-white/[.04] text-slate-500 text-[11px] font-mono font-semibold flex items-center justify-center shrink-0">{idx}</span>
+      <span className="text-base shrink-0">{flag(item.phone)}</span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-mono font-semibold text-white truncate cursor-pointer hover:text-violet-400 transition-colors" onClick={copy}>{item.phone}</p>
+        <span className="inline-flex items-center gap-1 mt-1 text-[10px] text-white/50 px-2 py-0.5 rounded-md bg-white/[.04] border border-white/[.07] font-medium">
+          📡 {item.sim}
+        </span>
+      </div>
+      <StatusDrop status={item.status} phone={item.phone} onChange={onStatus}/>
+      <button onClick={copy} className={`p-1.5 rounded-lg transition-all ${copied ? "text-emerald-400 bg-emerald-500/10" : "text-slate-500 hover:text-violet-400 hover:bg-violet-500/10"}`}>
+        {copied ? <Check size={13}/> : <Copy size={13}/>}
+      </button>
+    </motion.div>
+  );
+}
+
+function StatCard({ emoji, label, value, color }: { emoji: string; label: string; value: number; color: "blue" | "violet" }) {
+  const animated = useCountUp2(value);
+  const styles = {
+    blue:   { border: "border-indigo-500/[.12]", bg: "rgba(99,102,241,.08)", text: "text-indigo-300", iconBg: "rgba(99,102,241,.12)" },
+    violet: { border: "border-violet-500/[.12]", bg: "rgba(139,92,246,.08)", text: "text-violet-300", iconBg: "rgba(139,92,246,.12)" },
+  };
+  const s = styles[color];
+  return (
+    <motion.div className={`stat-card glass-card p-3 sm:p-4 border ${s.border}`}
+      style={{ background: s.bg }}
+      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+      <div className="stat-icon mb-3 text-lg" style={{ background: s.iconBg }}>{emoji}</div>
+      <p className={`text-2xl sm:text-3xl font-black tabular-nums ${s.text}`}>{animated.toLocaleString()}</p>
+      <p className="text-[10px] uppercase tracking-wide text-slate-500 mt-1 font-medium">{label}</p>
+    </motion.div>
+  );
+}
+
 export default function App() {
-  useNow(); // keeps relative timestamps fresh
-  const { stats, error } = useStats();
-  const [filter, setFilter] = useState<"all" | "otp" | "sms">("all");
-  const [newIds, setNewIds] = useState<Set<number>>(new Set());
+  const [tab, setTab] = useState<"messages" | "numbers">("messages");
+  const [online, setOnline] = useState(false);
+  const [bot, setBot] = useState<BotInfo | null>(null);
+  const [lastFetch, setLastFetch] = useState("");
+
+  const [rows, setRows] = useState<SmsRow[]>([]);
+  const [totalSms, setTotalSms] = useState(0);
+  const [otpCount, setOtpCount] = useState(0);
+  const [smsLoading, setSmsLoading] = useState(true);
+  const [smsPage, setSmsPage] = useState(1);
+  const [smsFilter, setSmsFilter] = useState<"all" | "otp" | "sms">("all");
   const prevLen = useRef(0);
+  const [newIdx, setNewIdx] = useState<Set<number>>(new Set());
+
+  const [nums, setNums] = useState<NumItem[]>([]);
+  const [numTotal, setNumTotal] = useState(0);
+  const [numLoading, setNumLoading] = useState(true);
+  const [numPage, setNumPage] = useState(1);
+  const [numFilter, setNumFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [newNums, setNewNums] = useState<Set<string>>(new Set());
+  const prevPhones = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    const len = stats?.recent.length ?? 0;
-    if (len > prevLen.current && prevLen.current > 0) {
-      setNewIds(new Set([0]));
-      setTimeout(() => setNewIds(new Set()), 3000);
-    }
-    prevLen.current = len;
-  }, [stats?.recent.length]);
+    fetch(BOT_INFO_API)
+      .then(r => r.json())
+      .then((d: { ok: boolean; username?: string }) => { if (d.ok && d.username) setBot({ username: d.username }); })
+      .catch(() => {});
+  }, []);
 
-  const filtered = (stats?.recent ?? []).filter((r) =>
-    filter === "all" ? true : filter === "otp" ? r.isOtp : !r.isOtp
-  );
+  const fetchSms = useCallback(async () => {
+    try {
+      const r = await fetch(SMS_API);
+      if (!r.ok) throw new Error();
+      const j = await r.json();
+      if (!j.success) throw new Error();
+      const aaData: unknown[][] = j.data?.aaData ?? [];
+      const parsed: SmsRow[] = [];
+      let otps = 0;
+      for (const row of aaData) {
+        if (!Array.isArray(row) || row.length < 7) continue;
+        const ts = String(row[0]); const sim = String(row[1]);
+        const phone = String(row[2]); const dev = String(row[3]);
+        const plan = String(row[5] || row[4] || "");
+        const body = String(row[7] || "");
+        if (phone === "0" || phone === "" || body === "0" || body === "") continue;
+        const isOtp = extractOtp(body) !== null;
+        if (isOtp) otps++;
+        parsed.push({ timestamp: ts, sim, phone, device: dev, plan, body, isOtp });
+      }
+      setRows(parsed);
+      setTotalSms(parseInt(String(j.data?.iTotalRecords || parsed.length)));
+      setOtpCount(otps);
+      setLastFetch(j.fetchedAt || new Date().toISOString());
+      setOnline(true);
+      if (parsed.length > prevLen.current && prevLen.current > 0) {
+        setNewIdx(new Set([0])); setTimeout(() => setNewIdx(new Set()), 3000);
+      }
+      prevLen.current = parsed.length;
+    } catch { setOnline(false); }
+    finally { setSmsLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchSms(); const id = setInterval(fetchSms, 5000); return () => clearInterval(id); }, [fetchSms]);
+
+  const fetchNums = useCallback(async () => {
+    try {
+      const r = await fetch(NUMBERS_API);
+      if (!r.ok) throw new Error();
+      const j = await r.json();
+      if (!j.success) throw new Error();
+      const aaData: unknown[][] = j.data?.aaData ?? [];
+      const saved = await fetchServerStatuses();
+      const out: NumItem[] = [];
+      const seen = new Set<string>();
+      for (const row of aaData) {
+        if (!Array.isArray(row) || row.length < 2) continue;
+        const phone = String(row[1]);
+        if (seen.has(phone) || phone === "" || phone === "0") continue;
+        seen.add(phone);
+        out.push({ sim: String(row[0]), phone, status: (saved[phone] as Status) || "not_tried" });
+      }
+      const cur = new Set<string>(out.map(n => n.phone));
+      const added = new Set<string>();
+      if (prevPhones.current.size > 0) out.forEach(n => { if (!prevPhones.current.has(n.phone)) added.add(n.phone); });
+      setNewNums(added); prevPhones.current = cur;
+      if (added.size > 0) setTimeout(() => setNewNums(new Set()), 3000);
+      setNums(out); setNumTotal(parseInt(String(j.data?.iTotalRecords || out.length)));
+    } catch {} finally { setNumLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchNums(); }, [fetchNums]);
+
+  const onStatus = useCallback((phone: string, status: Status) => {
+    setNums(prev => prev.map(n => n.phone === phone ? { ...n, status } : n));
+    toast.success("Status updated", { description: `${phone} → ${STATUS_CFG[status].label}` });
+    saveServerStatus(phone, status).catch(() => {
+      toast.error("Failed to save status", { description: "Check your connection" });
+    });
+  }, []);
+
+  const filtered = rows.filter(r => smsFilter === "all" ? true : smsFilter === "otp" ? r.isOtp : !r.isOtp);
+  const smsPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+  const smsFrom = (smsPage - 1) * PER_PAGE;
+  const paged = filtered.slice(smsFrom, smsFrom + PER_PAGE);
+  const pageOtpCount = paged.filter(r => r.isOtp).length;
+
+  const filtNums = nums
+    .filter(n => n.sim.toLowerCase().includes(search.toLowerCase()) || n.phone.includes(search))
+    .filter(n => numFilter === "all" || n.status === numFilter);
+  const numPages = Math.max(1, Math.ceil(filtNums.length / PER_PAGE));
+  const numFrom  = (numPage - 1) * PER_PAGE;
+  const pagedNums = filtNums.slice(numFrom, numFrom + PER_PAGE);
+
+  const numCounts = {
+    all:          nums.length,
+    registered:   nums.filter(n => n.status === "registered").length,
+    unregistered: nums.filter(n => n.status === "unregistered").length,
+    not_tried:    nums.filter(n => n.status === "not_tried").length,
+    already_other:nums.filter(n => n.status === "already_other").length,
+  };
+  const ranges = new Set(nums.map(n => n.sim.split(/\s+/)[0])).size;
+
+  const aSms  = useCountUp(totalSms);
+  const aOtps = useCountUp(pageOtpCount);
+
+  useEffect(() => { setSmsPage(1); }, [smsFilter]);
+  useEffect(() => { setNumPage(1); }, [search, numFilter]);
 
   return (
-    <div className="min-h-screen text-white relative overflow-hidden" style={{ background: "#060610", fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div className="min-h-screen text-white" style={{ background: "#05050e", fontFamily: "'Inter',system-ui,sans-serif" }}>
+      <Toaster position="top-center" richColors theme="dark"
+        toastOptions={{ style: { background: "rgba(15,15,25,.95)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,.08)", fontSize: "13px" } }}/>
 
-      {/* Background glow orbs */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-40 -left-40 w-96 h-96 bg-violet-600/10 rounded-full blur-[120px]" />
-        <div className="absolute top-1/3 -right-40 w-80 h-80 bg-blue-600/8 rounded-full blur-[100px]" />
-        <div className="absolute -bottom-20 left-1/3 w-72 h-72 bg-indigo-600/8 rounded-full blur-[100px]" />
-        {/* Subtle grid */}
-        <div className="absolute inset-0 opacity-[0.025]" style={{
-          backgroundImage: `linear-gradient(rgba(255,255,255,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px)`,
-          backgroundSize: "40px 40px"
-        }} />
+        <div className="absolute -top-48 -left-32 w-[500px] h-[500px] bg-violet-600/[.07] rounded-full blur-[130px]"/>
+        <div className="absolute top-1/2 -right-48 w-96 h-96 bg-indigo-600/[.06] rounded-full blur-[110px]"/>
+        <div className="absolute -bottom-32 left-1/3 w-80 h-80 bg-purple-700/[.06] rounded-full blur-[100px]"/>
       </div>
 
-      {/* ── Navbar ── */}
-      <nav className="relative z-20 border-b border-white/[0.05]" style={{ background: "rgba(6,6,16,0.8)", backdropFilter: "blur(20px)" }}>
-        <div className="max-w-4xl mx-auto px-5 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {/* Logo mark */}
-            <div className="relative">
-              <div className="absolute inset-0 rounded-xl bg-violet-500/30 blur-md" />
-              <div className="relative w-9 h-9 rounded-xl flex items-center justify-center border border-violet-400/20"
-                style={{ background: "linear-gradient(135deg, rgba(139,92,246,0.5), rgba(99,102,241,0.5))" }}>
-                <svg className="w-4.5 h-4.5 text-violet-200" style={{width:18,height:18}} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.7">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z"/>
+      <nav className="sticky top-0 z-30 border-b border-white/[.05]"
+        style={{ background: "rgba(5,5,14,.9)", backdropFilter: "blur(24px)" }}>
+        <div className="px-4 sm:px-6 lg:px-8 h-[56px] flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="relative w-9 h-9">
+              <div className="absolute inset-0 rounded-xl bg-violet-500/40 blur-lg"/>
+              <div className="relative w-9 h-9 rounded-xl flex items-center justify-center border border-violet-400/25"
+                style={{ background: "linear-gradient(135deg,rgba(139,92,246,.6),rgba(99,102,241,.5))" }}>
+                <svg className="w-4 h-4 text-violet-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0"/>
+                  <circle cx="12" cy="20" r="1" fill="currentColor"/>
                 </svg>
               </div>
             </div>
-            <div>
-              <div className="text-sm font-bold tracking-tight text-white">SMS Monitor</div>
-              <div className="text-[9px] tracking-[0.2em] uppercase font-medium" style={{ color: "rgba(139,92,246,0.7)" }}>Zone SMS</div>
+            <div className="hidden sm:block leading-tight">
+              <p className="text-[13px] font-bold text-white tracking-tight">{bot ? `@${bot.username}` : "SMS Monitor"}</p>
+              <p className="text-[9px] tracking-[.18em] uppercase" style={{ color: "rgba(139,92,246,.7)" }}>Zone SMS</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            {stats && (
-              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/10"
-                style={{ background: "rgba(255,255,255,0.05)" }}>
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-400/70 shrink-0"
-                  style={{ animation: "pulse 2.5s ease-in-out infinite" }} />
-                <span className="text-[10px] font-medium text-white/55 whitespace-nowrap">
-                  updated {timeAgo(stats.lastUpdated)}
-                </span>
-              </div>
+          <div className="flex gap-1 p-1 rounded-xl border border-white/[.06]" style={{ background: "rgba(255,255,255,.03)" }}>
+            {(["messages","numbers"] as const).map(t => (
+              <button key={t} onClick={() => setTab(t)}
+                className={`flex items-center gap-1.5 text-[11px] font-bold px-4 py-1.5 rounded-lg transition-all whitespace-nowrap ${
+                  tab === t ? "text-white shadow-sm" : "text-white/25 hover:text-white/50"}`}
+                style={tab === t ? { background: "linear-gradient(135deg,rgba(139,92,246,.3),rgba(99,102,241,.2))", boxShadow: "0 0 16px rgba(139,92,246,.2)" } : {}}>
+                {t === "messages" ? "📨 Messages" : "📋 Numbers"}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {lastFetch && (
+              <span className="hidden sm:flex items-center gap-1.5 text-[10px] text-white/30 font-medium px-2.5 py-1 rounded-full border border-white/[.07]" style={{ background: "rgba(255,255,255,.03)" }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-400/60 animate-pulse shrink-0"/>
+                {timeAgo(lastFetch)}
+              </span>
             )}
-            <div className={`flex items-center gap-2 text-[11px] font-semibold px-3 py-1.5 rounded-full border ${
-              error
-                ? "border-red-500/25 text-red-400" : "border-emerald-500/25 text-emerald-400"
-            }`} style={{ background: error ? "rgba(239,68,68,0.08)" : "rgba(52,211,153,0.08)" }}>
-              <span className={`w-1.5 h-1.5 rounded-full ${error ? "bg-red-400" : "bg-emerald-400"}`}
-                style={error ? {} : { animation: "pulse 2s infinite", boxShadow: "0 0 6px rgba(52,211,153,0.8)" }} />
-              {error ? "Offline" : "Live"}
+            <div className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full border transition-all ${
+              online ? "text-emerald-400 border-emerald-500/25" : "text-red-400 border-red-500/25"}`}
+              style={{ background: online ? "rgba(16,185,129,.08)" : "rgba(239,68,68,.08)" }}>
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${online ? "bg-emerald-400" : "bg-red-400"}`}
+                style={online ? { animation: "pulse 2s infinite", boxShadow: "0 0 8px rgba(52,211,153,.8)" } : {}}/>
+              {online ? "Live" : "Offline"}
             </div>
           </div>
         </div>
       </nav>
 
-      <main className="relative z-10 max-w-4xl mx-auto px-5 py-8 space-y-5">
+      <AnimatePresence mode="wait">
 
-        {/* ── Stat Cards ── */}
-        <div className="grid grid-cols-3 gap-3">
-          <StatCard
-            label="Total SMS"
-            value={stats?.totalRecords ?? "—"}
-            icon={<svg style={{width:16,height:16}} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>}
-            gradient="bg-gradient-to-br from-blue-500/[0.07] to-transparent border-blue-500/[0.1]"
-            iconColor="bg-blue-500/15 text-blue-400"
-            textColor="text-blue-300"
-          />
-          <StatCard
-            label="OTPs Detected"
-            value={stats?.otpCount != null ? String(stats.otpCount) : "—"}
-            icon={<svg style={{width:16,height:16}} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"/></svg>}
-            gradient="bg-gradient-to-br from-violet-500/[0.09] to-transparent border-violet-500/[0.12]"
-            iconColor="bg-violet-500/15 text-violet-400"
-            textColor="text-violet-300"
-          />
-          <StatCard
-            label="Bot Status"
-            value={error ? "Offline" : "Online"}
-            icon={<svg style={{width:16,height:16}} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728M8.464 15.536a5 5 0 010-7.072m7.072 0a5 5 0 010 7.072M12 12h.01"/></svg>}
-            gradient={error ? "bg-gradient-to-br from-red-500/[0.07] to-transparent border-red-500/[0.1]" : "bg-gradient-to-br from-emerald-500/[0.07] to-transparent border-emerald-500/[0.1]"}
-            iconColor={error ? "bg-red-500/15 text-red-400" : "bg-emerald-500/15 text-emerald-400"}
-            textColor={error ? "text-red-300" : "text-emerald-300"}
-          />
-        </div>
+        {tab === "messages" && (
+          <motion.div key="msg" className="px-4 sm:px-6 lg:px-8 py-6 space-y-5"
+            initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}>
 
-        {/* ── Message Feed ── */}
-        <div className="rounded-2xl border border-white/[0.06] overflow-hidden" style={{ background: "rgba(12,12,22,0.8)", backdropFilter: "blur(12px)" }}>
+            <div className="grid grid-cols-3 gap-3 sm:gap-4">
+              <div className="rounded-2xl border border-blue-500/[.1] p-4 sm:p-5 relative overflow-hidden"
+                style={{ background: "linear-gradient(135deg,rgba(59,130,246,.08),rgba(37,99,235,.04))" }}>
+                <div className="absolute inset-0 bg-gradient-to-br from-white/[.02] to-transparent"/>
+                <div className="w-9 h-9 rounded-xl bg-blue-500/15 flex items-center justify-center mb-3 text-blue-400 text-lg">📩</div>
+                <p className="text-3xl sm:text-4xl font-black text-blue-300 tabular-nums">{aSms}</p>
+                <p className="text-[11px] text-white/30 mt-1 font-medium">Total SMS</p>
+              </div>
+              <div className="rounded-2xl border border-violet-500/[.12] p-4 sm:p-5 relative overflow-hidden"
+                style={{ background: "linear-gradient(135deg,rgba(139,92,246,.1),rgba(99,102,241,.05))" }}>
+                <div className="absolute inset-0 bg-gradient-to-br from-white/[.02] to-transparent"/>
+                <div className="w-9 h-9 rounded-xl bg-violet-500/15 flex items-center justify-center mb-3 text-lg">🔐</div>
+                <p className="text-3xl sm:text-4xl font-black text-violet-300 tabular-nums">{aOtps}</p>
+                <p className="text-[11px] text-white/30 mt-1 font-medium">OTPs This Page</p>
+              </div>
+              <div className={`rounded-2xl border p-4 sm:p-5 relative overflow-hidden ${online ? "border-emerald-500/[.12]" : "border-red-500/[.1]"}`}
+                style={{ background: online ? "linear-gradient(135deg,rgba(16,185,129,.09),rgba(5,150,105,.04))" : "linear-gradient(135deg,rgba(239,68,68,.08),rgba(185,28,28,.03))" }}>
+                <div className="absolute inset-0 bg-gradient-to-br from-white/[.02] to-transparent"/>
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 text-lg ${online ? "bg-emerald-500/15" : "bg-red-500/15"}`}>{online ? "🟢" : "🔴"}</div>
+                <p className={`text-2xl sm:text-3xl font-black ${online ? "text-emerald-300" : "text-red-300"}`}>{online ? "Online" : "Offline"}</p>
+                <p className="text-[11px] text-white/30 mt-1 font-medium">Bot Status</p>
+              </div>
+            </div>
 
-          {/* Header */}
-          <div className="px-5 py-3.5 border-b border-white/[0.05] flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-1.5 h-5 rounded-full bg-gradient-to-b from-violet-400 to-indigo-500" />
-              <h2 className="text-sm font-semibold text-white/80">Messages</h2>
-              {stats && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full border border-white/[0.08] text-white/25" style={{ background: "rgba(255,255,255,0.03)" }}>
-                  {stats.totalRecords} total
-                </span>
+            <div className="rounded-2xl border border-white/[.06] overflow-hidden"
+              style={{ background: "rgba(10,10,20,.85)", backdropFilter: "blur(16px)" }}>
+
+              <div className="px-5 py-3.5 border-b border-white/[.05] flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-1 h-5 rounded-full" style={{ background: "linear-gradient(to bottom,#a78bfa,#818cf8)" }}/>
+                  <h2 className="text-sm font-bold text-white/85">Live Feed</h2>
+                  {totalSms > 0 && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/[.04] border border-white/[.07] text-white/30 font-mono">
+                      {totalSms} total
+                    </span>
+                  )}
+                  {smsPages > 1 && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-500/10 border border-violet-400/20 text-violet-400 font-mono">
+                      {smsPage}/{smsPages}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={fetchSms} disabled={smsLoading}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center border border-white/[.08] text-white/30 hover:text-white/70 hover:border-white/20 transition-all">
+                    <RefreshCw size={13} className={smsLoading ? "animate-spin" : ""}/>
+                  </button>
+                  <div className="flex p-1 gap-0.5 rounded-xl border border-white/[.06]" style={{ background: "rgba(255,255,255,.02)" }}>
+                    {(["all","otp","sms"] as const).map(f => (
+                      <button key={f} onClick={() => setSmsFilter(f)}
+                        className={`text-[11px] font-bold px-3 py-1 rounded-lg transition-all ${
+                          smsFilter === f ? "text-white bg-violet-500/20 shadow-sm" : "text-white/25 hover:text-white/50"}`}>
+                        {f === "all" ? "All" : f === "otp" ? "⚡ OTP" : "📨 SMS"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {smsLoading ? (
+                <div className="flex items-center justify-center gap-3 py-24 text-white/20">
+                  <div className="w-5 h-5 rounded-full border-2 border-violet-500/30 border-t-violet-400 animate-spin"/>
+                  <span className="text-sm">Connecting…</span>
+                </div>
+              ) : paged.length === 0 ? (
+                <div className="py-24 text-center text-white/20 text-sm">No messages yet</div>
+              ) : (
+                <div>
+                  {paged.map((row, i) => {
+                    const otp = row.isOtp ? extractOtp(row.body) : null;
+                    const isNew = newIdx.has(i) && smsPage === 1;
+                    return (
+                      <div key={`${smsFrom + i}`}
+                        className={`group relative px-5 py-4 border-b border-white/[.035] last:border-none transition-colors ${
+                          isNew ? "bg-violet-500/[.05]" : row.isOtp ? "hover:bg-violet-500/[.025]" : "hover:bg-white/[.012]"}`}>
+                        <div className={`absolute left-0 top-0 bottom-0 w-[3px] rounded-r transition-all ${
+                          isNew ? "opacity-100" : row.isOtp ? "opacity-30 group-hover:opacity-70" : "opacity-0"}`}
+                          style={{ background: "linear-gradient(#a78bfa,#818cf8)" }}/>
+
+                        <div className="flex items-center gap-2 mb-2.5">
+                          <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md shrink-0 ${
+                            row.isOtp ? "bg-violet-500/20 text-violet-300 border border-violet-400/20"
+                                      : "bg-blue-500/15 text-blue-300 border border-blue-400/15"}`}>
+                            {row.isOtp ? "OTP" : "SMS"}
+                          </span>
+                          <span className="text-[15px] leading-none shrink-0">{flag(row.phone)}</span>
+                          <span className="text-[11px] font-bold font-mono text-white/75 px-2 py-0.5 rounded-md bg-white/[.04] border border-white/[.07] flex-1 truncate">
+                            {row.phone}
+                          </span>
+                          <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                            <span className="text-[10px] font-mono text-white/55 px-2 py-0.5 rounded-md bg-white/[.04] border border-white/[.07]">
+                              {clockStr(row.timestamp)}
+                            </span>
+                            <span className="text-[10px] font-medium text-slate-400/80 px-2 py-0.5 rounded-md bg-white/[.03] border border-white/[.06]">
+                              {timeAgo(row.timestamp)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {otp && <div className="mb-3"><OtpCode otp={otp}/></div>}
+
+                        <p className="text-[12px] text-white/35 leading-relaxed mb-3 line-clamp-2">{row.body}</p>
+
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-white/50 px-2 py-0.5 rounded-md bg-white/[.04] border border-white/[.07] font-medium">
+                            📡 {row.sim}
+                          </span>
+                          {row.device && row.device !== "0" && (
+                            <span className="text-[10px] text-sky-300/70 px-2 py-0.5 rounded-md bg-sky-500/[.07] border border-sky-400/[.12] font-medium">
+                              📲 {row.device}
+                            </span>
+                          )}
+                          {row.plan && row.plan !== "0" && (
+                            <span className="text-[10px] text-emerald-400/70 px-2 py-0.5 rounded-md bg-emerald-500/[.07] border border-emerald-500/[.12] font-medium">
+                              {row.plan}
+                            </span>
+                          )}
+                          <div className="ml-auto flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                            {otp && <CopyPill label="OTP" value={otp} primary/>}
+                            <CopyPill label="Number" value={row.phone}/>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {smsPages > 1 && (
+                    <div className="px-5 pb-4">
+                      <Pagination page={smsPage} total={smsPages} onChange={setSmsPage}
+                        from={smsFrom} to={smsFrom + PER_PAGE} count={filtered.length}/>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
-            {/* Filters */}
-            <div className="flex items-center gap-1 p-1 rounded-xl border border-white/[0.06]" style={{ background: "rgba(255,255,255,0.03)" }}>
-              {(["all", "otp", "sms"] as const).map((f) => (
-                <button key={f} onClick={() => setFilter(f)}
-                  className={`text-[11px] font-semibold px-3 py-1 rounded-lg transition-all duration-200 ${
-                    filter === f ? "text-white" : "text-white/25 hover:text-white/50"
-                  }`}
-                  style={filter === f ? { background: "rgba(139,92,246,0.2)", boxShadow: "0 0 12px rgba(139,92,246,0.15)" } : {}}>
-                  {f === "all" ? "All" : f === "otp" ? "⚡ OTP" : "📨 SMS"}
-                </button>
-              ))}
+
+            <footer className="mt-2 pb-6 flex flex-col items-center gap-2">
+              <div className="w-full h-px" style={{ background: "linear-gradient(to right,transparent,rgba(139,92,246,.18),transparent)" }}/>
+              <div className="flex items-center gap-2 pt-1">
+                <span className="text-[10px] text-white/25 font-medium tracking-widest uppercase">Powered by</span>
+                <span className="text-[11px] font-black tracking-wide"
+                  style={{ background: "linear-gradient(90deg,#a78bfa,#818cf8,#38bdf8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                  Shadow Logic
+                </span>
+                <span className="text-[11px]">🚀</span>
+                <span className="text-[9px] text-white/40 font-mono border border-white/15 px-1.5 py-0.5 rounded-md">
+                  © {new Date().getFullYear()}
+                </span>
+              </div>
+            </footer>
+          </motion.div>
+        )}
+
+        {tab === "numbers" && (
+          <motion.div key="nums" className="main-content"
+            initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}>
+
+            <div className="stats-grid">
+              <StatCard emoji="📋" label="Total Numbers" value={numTotal} color="blue"/>
+              <StatCard emoji="🗺️" label="Ranges"        value={ranges}   color="violet"/>
+              <div className="stat-card glass-card p-3 sm:p-4">
+                <div className="stat-icon mb-3 text-lg" style={{ background: online ? "rgba(16,185,129,.12)" : "rgba(239,68,68,.1)" }}>{online ? "🟢" : "🔴"}</div>
+                <p className={`text-2xl font-black ${online ? "text-emerald-400" : "text-red-400"}`}>{online ? "Online" : "Offline"}</p>
+                <p className="text-[10px] uppercase tracking-wide text-slate-500 mt-1 font-medium">Bot Status</p>
+              </div>
             </div>
-          </div>
 
-          {/* Body */}
-          {!stats ? (
-            <div className="flex items-center justify-center gap-2.5 py-20 text-white/20 text-sm">
-              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-              </svg>
-              Connecting...
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="py-20 text-center text-white/20 text-sm">No messages</div>
-          ) : (
-            <div className="divide-y divide-white/[0.04]">
-              {filtered.map((row, i) => {
-                const otp = row.isOtp ? extractOtp(row.body) : null;
-                const isNew = newIds.has(i);
-                return (
-                  <div key={i} className={`group relative px-5 py-4 transition-all duration-300 ${
-                    isNew ? "bg-violet-500/[0.05]" : "hover:bg-white/[0.015]"
-                  }`}>
-                    {isNew && <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-r" style={{ background: "linear-gradient(to bottom, #a78bfa, #818cf8)" }} />}
-
-                    <div className="flex items-start gap-3.5">
-                      {/* Type icon pill */}
-                      <div className={`mt-0.5 w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-200 ${
-                        row.isOtp
-                          ? "border-violet-500/25 text-violet-300"
-                          : "border-blue-500/20 text-blue-300"
-                      }`} style={{
-                        background: row.isOtp
-                          ? "linear-gradient(135deg, rgba(139,92,246,0.15), rgba(99,102,241,0.08))"
-                          : "linear-gradient(135deg, rgba(59,130,246,0.12), rgba(37,99,235,0.06))"
-                      }}>
-                        {row.isOtp ? (
-                          <svg style={{width:14,height:14}} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"/>
-                          </svg>
-                        ) : (
-                          <svg style={{width:14,height:14}} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/>
-                          </svg>
-                        )}
-                      </div>
-
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-
-                        {/* Row 1: type tag + phone + live time badge */}
-                        <div className="flex items-center justify-between gap-2 mb-2">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className={`text-[9px] font-extrabold uppercase tracking-[0.18em] px-1.5 py-0.5 rounded-md ${
-                              row.isOtp
-                                ? "text-violet-300 bg-violet-500/15 border border-violet-500/20"
-                                : "text-blue-300 bg-blue-500/12 border border-blue-500/15"
-                            }`}>
-                              {row.isOtp ? "OTP" : "SMS"}
-                            </span>
-                            <span className="text-[13px] font-semibold font-mono text-white/80 truncate">{row.phone}</span>
-                          </div>
-                          {/* Live time — matches navbar "updated just now" style */}
-                          <div className="flex items-center gap-2 shrink-0">
-                            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-white/[0.07]"
-                              style={{ background: "rgba(255,255,255,0.03)" }}>
-                              <span className="w-1 h-1 rounded-full bg-emerald-400/60 shrink-0"
-                                style={{ animation: "pulse 2.5s ease-in-out infinite" }} />
-                              <span className="text-[10px] font-medium text-white/40 tabular-nums">
-                                {timeAgo(row.timestamp)}
-                              </span>
-                            </div>
-                            <span className="text-[10px] text-white/20 font-mono tabular-nums hidden sm:block">
-                              {formatClock(row.timestamp)} · {formatDate(row.timestamp)}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* OTP clickable badge */}
-                        {otp && <OtpBadge otp={otp} />}
-
-                        {/* Message body */}
-                        <p className="text-[12px] text-white/30 leading-relaxed break-all line-clamp-2 mb-2.5">{row.body}</p>
-
-                        {/* Metadata chips */}
-                        <div className="flex items-center flex-wrap gap-1.5">
-                          {/* SIM chip */}
-                          <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md border border-white/[0.08] text-white/40"
-                            style={{ background: "rgba(255,255,255,0.04)" }}>
-                            <svg style={{width:9,height:9}} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5z"/>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z"/>
-                            </svg>
-                            {row.sim}
-                          </span>
-                          {/* Device chip */}
-                          <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md border border-white/[0.08] text-white/40"
-                            style={{ background: "rgba(255,255,255,0.04)" }}>
-                            <svg style={{width:9,height:9}} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 15h3"/>
-                            </svg>
-                            {row.device}
-                          </span>
-                          {/* Plan chip */}
-                          <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md border border-emerald-500/[0.15] text-emerald-400/60"
-                            style={{ background: "rgba(52,211,153,0.04)" }}>
-                            <svg style={{width:9,height:9}} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z"/>
-                            </svg>
-                            {row.plan}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Hover copy actions */}
-                      <div className="flex flex-col gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-1 group-hover:translate-x-0">
-                        {otp && <CopyBtn label="Copy OTP" value={otp} accent />}
-                        <CopyBtn label="Number" value={row.phone} />
-                        <CopyBtn label="Message" value={row.body} />
-                      </div>
-                    </div>
+            <div className="glass-card p-3 sm:p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="violet-bar"/>
+                  <div>
+                    <h2 className="text-base font-bold text-white">Phone Numbers</h2>
+                    <p className="text-[10px] text-slate-500">{filtNums.length} shown · {numTotal} total</p>
                   </div>
-                );
-              })}
+                </div>
+                <div className="flex items-center gap-2">
+                  {numPages > 1 && <span className="page-indicator">{numPage}/{numPages}</span>}
+                  <button onClick={fetchNums} disabled={numLoading}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center border border-white/[.08] text-white/30 hover:text-white/70 hover:border-white/20 transition-all">
+                    <RefreshCw size={12} className={numLoading ? "animate-spin" : ""}/>
+                  </button>
+                </div>
+              </div>
+
+              <div className="filter-tabs mb-3">
+                {([
+                  { k: "all",          label: "All",          color: "#94a3b8", emoji: "📋" },
+                  { k: "registered",   label: "Registered",   color: "#10b981", emoji: "✅" },
+                  { k: "unregistered", label: "Unregistered", color: "#f43f5e", emoji: "❌" },
+                  { k: "not_tried",    label: "Not Tried",    color: "#64748b", emoji: "⏳" },
+                  { k: "already_other",label: "Already Other",color: "#a855f7", emoji: "🔄" },
+                ] as const).map(f => (
+                  <button key={f.k} onClick={() => setNumFilter(f.k)}
+                    className={`filter-tab ${numFilter === f.k ? "active" : ""}`}
+                    style={{ "--tab-color": f.color } as React.CSSProperties}>
+                    <span>{f.emoji}</span>
+                    <span className="hidden sm:inline">{f.label}</span>
+                    <span className="filter-count">{numCounts[f.k as keyof typeof numCounts] || 0}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="search-wrapper mb-3">
+                <Search className="search-icon" size={14}/>
+                <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+                  placeholder="Search by number or provider…" className="search-input"/>
+              </div>
+
+              <div className="space-y-0.5">
+                {numLoading && nums.length === 0 ? (
+                  <div className="flex flex-col items-center py-12 gap-3">
+                    <div className="spinner"/>
+                    <p className="text-xs text-slate-500 font-mono">Loading…</p>
+                  </div>
+                ) : pagedNums.length === 0 ? (
+                  <div className="empty-state py-10">
+                    <PhoneOff className="w-10 h-10 text-slate-600 mb-3"/>
+                    <p className="text-sm text-slate-500">No numbers found</p>
+                  </div>
+                ) : (
+                  <AnimatePresence>
+                    {pagedNums.map((item, i) => (
+                      <NumRow key={item.phone} item={item} idx={numFrom + i + 1}
+                        isNew={newNums.has(item.phone)} onStatus={onStatus}/>
+                    ))}
+                  </AnimatePresence>
+                )}
+              </div>
+
+              {numPages > 1 && (
+                <Pagination page={numPage} total={numPages} onChange={setNumPage}
+                  from={numFrom} to={numFrom + PER_PAGE} count={filtNums.length}/>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-center gap-1.5 pb-4 pt-1">
-          <span className="text-[11px] text-white/35 tracking-wide font-medium">
-            Auto-refresh every 5s · SMS Monitor · Powered by Shadow Logic
-          </span>
-          <span className="text-sm">🚀</span>
-        </div>
-      </main>
+            <footer className="mt-2 pb-6 flex flex-col items-center gap-2">
+              <div className="w-full h-px" style={{ background: "linear-gradient(to right,transparent,rgba(139,92,246,.18),transparent)" }}/>
+              <div className="flex items-center gap-2 pt-1">
+                <span className="text-[10px] text-white/25 font-medium tracking-widest uppercase">Powered by</span>
+                <span className="text-[11px] font-black tracking-wide"
+                  style={{ background: "linear-gradient(90deg,#a78bfa,#818cf8,#38bdf8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                  Shadow Logic
+                </span>
+                <span className="text-[11px]">🚀</span>
+                <span className="text-[9px] text-white/40 font-mono border border-white/15 px-1.5 py-0.5 rounded-md">
+                  © {new Date().getFullYear()}
+                </span>
+              </div>
+            </footer>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.4; }
-        }
-      `}</style>
+      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}`}</style>
     </div>
   );
 }
