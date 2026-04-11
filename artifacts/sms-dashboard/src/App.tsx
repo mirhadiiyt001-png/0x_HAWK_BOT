@@ -628,32 +628,32 @@ export default function App() {
               <div className="px-5 py-3.5 border-b border-white/[.05] flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5">
                   <div className="w-1 h-5 rounded-full" style={{ background: "linear-gradient(to bottom,#a78bfa,#818cf8)" }}/>
-                  <h2 className="text-sm font-bold text-white/85">Live Feed</h2>
+                  <h2 className="text-sm font-bold text-white">Messages</h2>
                   {totalSms > 0 && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/[.04] border border-white/[.07] text-white/30 font-mono">
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full border border-white/[.08] text-white/35 font-medium"
+                      style={{ background: "rgba(255,255,255,.04)" }}>
                       {totalSms} total
                     </span>
                   )}
-                  {smsPages > 1 && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-500/10 border border-violet-400/20 text-violet-400 font-mono">
-                      {smsPage}/{smsPages}
-                    </span>
-                  )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <button onClick={fetchSms} disabled={smsLoading}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center border border-white/[.08] text-white/30 hover:text-white/70 hover:border-white/20 transition-all">
-                    <RefreshCw size={13} className={smsLoading ? "animate-spin" : ""}/>
-                  </button>
-                  <div className="flex p-1 gap-0.5 rounded-xl border border-white/[.06]" style={{ background: "rgba(255,255,255,.02)" }}>
-                    {(["all","otp","sms"] as const).map(f => (
-                      <button key={f} onClick={() => setSmsFilter(f)}
-                        className={`text-[11px] font-bold px-3 py-1 rounded-lg transition-all ${
-                          smsFilter === f ? "text-white bg-violet-500/20 shadow-sm" : "text-white/25 hover:text-white/50"}`}>
-                        {f === "all" ? "All" : f === "otp" ? "⚡ OTP" : "📨 SMS"}
-                      </button>
-                    ))}
-                  </div>
+                <div className="flex items-center p-1 gap-0.5 rounded-2xl border border-white/[.07]"
+                  style={{ background: "rgba(255,255,255,.025)" }}>
+                  {([
+                    { k: "all",  label: "All",      icon: null },
+                    { k: "otp",  label: "OTP",      icon: "⚡" },
+                    { k: "sms",  label: "SMS",       icon: "📨" },
+                  ] as const).map(({ k, label, icon }) => (
+                    <button key={k} onClick={() => setSmsFilter(k)}
+                      className={`flex items-center gap-1.5 text-[11px] font-bold px-3.5 py-1.5 rounded-xl transition-all duration-200 ${
+                        smsFilter === k ? "text-white" : "text-white/30 hover:text-white/55"}`}
+                      style={smsFilter === k ? {
+                        background: "linear-gradient(135deg,rgba(109,40,217,.55),rgba(79,70,229,.4))",
+                        boxShadow: "0 1px 12px rgba(109,40,217,.35), inset 0 1px 0 rgba(255,255,255,.1)"
+                      } : {}}>
+                      {icon && <span className="text-[12px] leading-none">{icon}</span>}
+                      {label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
