@@ -510,16 +510,15 @@ export default function App() {
       </div>
 
       {/* Navbar */}
-      <nav className="sticky top-0 z-30 border-b border-white/[.05]"
-        style={{ background: "rgba(6,6,16,.9)", backdropFilter: "blur(24px)" }}>
-        <div className="px-4 sm:px-6 lg:px-8 h-[56px] flex items-center justify-between gap-4">
+      <nav className="sticky top-0 z-30 border-b border-white/[.06]"
+        style={{ background: "rgba(6,6,16,.92)", backdropFilter: "blur(28px)" }}>
+        <div className="relative px-4 sm:px-6 lg:px-8 h-[60px] flex items-center justify-between">
           {/* Logo */}
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-3 shrink-0 z-10">
             <div className="relative w-9 h-9">
               <div className="absolute inset-0 rounded-xl bg-violet-500/40 blur-lg"/>
               <div className="relative w-9 h-9 rounded-xl flex items-center justify-center border border-violet-400/25"
                 style={{ background: "linear-gradient(135deg,rgba(139,92,246,.6),rgba(99,102,241,.5))" }}>
-                {/* Heroicons: Wifi/Signal */}
                 <svg className="w-4 h-4 text-violet-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0"/>
                   <circle cx="12" cy="20" r="1" fill="currentColor"/>
@@ -527,29 +526,40 @@ export default function App() {
               </div>
             </div>
             <div className="leading-tight">
-              <p className="text-[13px] font-black text-white tracking-widest uppercase" style={{ letterSpacing: "0.12em" }}>Zone SMS</p>
+              <p className="text-[13px] font-black text-white" style={{ letterSpacing: "0.12em" }}>ZONE SMS</p>
               <p className="text-[9px] tracking-[.22em] uppercase font-medium" style={{ color: "rgba(139,92,246,.65)" }}>SMS Monitor</p>
             </div>
           </div>
 
-          {/* Tabs */}
-          <div className="flex gap-1 p-1 rounded-xl border border-white/[.06]" style={{ background: "rgba(255,255,255,.03)" }}>
+          {/* Tabs — absolutely centered */}
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1 p-1 rounded-2xl border border-white/[.07]"
+            style={{ background: "rgba(255,255,255,.025)" }}>
             <button onClick={() => setTab("messages")}
-              className={`flex items-center gap-1.5 text-[11px] font-bold px-4 py-1.5 rounded-lg transition-all whitespace-nowrap ${
-                tab === "messages" ? "text-white shadow-sm" : "text-white/25 hover:text-white/50"}`}
-              style={tab === "messages" ? { background: "linear-gradient(135deg,rgba(139,92,246,.3),rgba(99,102,241,.2))", boxShadow: "0 0 16px rgba(139,92,246,.2)" } : {}}>
-              <IconEnvelope className="w-3.5 h-3.5 shrink-0"/> Messages
+              className={`relative flex items-center gap-2 text-[11px] font-bold px-5 py-2 rounded-xl transition-all duration-200 whitespace-nowrap tracking-wide ${
+                tab === "messages" ? "text-white" : "text-white/30 hover:text-white/60"}`}
+              style={tab === "messages" ? {
+                background: "linear-gradient(135deg,rgba(139,92,246,.35),rgba(99,102,241,.22))",
+                boxShadow: "0 0 20px rgba(139,92,246,.25), inset 0 1px 0 rgba(255,255,255,.08)",
+                border: "1px solid rgba(139,92,246,.3)"
+              } : { border: "1px solid transparent" }}>
+              <IconEnvelope className="w-3.5 h-3.5 shrink-0"/>
+              <span>Messages</span>
             </button>
             <button onClick={() => setTab("numbers")}
-              className={`flex items-center gap-1.5 text-[11px] font-bold px-4 py-1.5 rounded-lg transition-all whitespace-nowrap ${
-                tab === "numbers" ? "text-white shadow-sm" : "text-white/25 hover:text-white/50"}`}
-              style={tab === "numbers" ? { background: "linear-gradient(135deg,rgba(139,92,246,.3),rgba(99,102,241,.2))", boxShadow: "0 0 16px rgba(139,92,246,.2)" } : {}}>
-              <IconPhoneList className="w-3.5 h-3.5 shrink-0"/> Numbers
+              className={`relative flex items-center gap-2 text-[11px] font-bold px-5 py-2 rounded-xl transition-all duration-200 whitespace-nowrap tracking-wide ${
+                tab === "numbers" ? "text-white" : "text-white/30 hover:text-white/60"}`}
+              style={tab === "numbers" ? {
+                background: "linear-gradient(135deg,rgba(139,92,246,.35),rgba(99,102,241,.22))",
+                boxShadow: "0 0 20px rgba(139,92,246,.25), inset 0 1px 0 rgba(255,255,255,.08)",
+                border: "1px solid rgba(139,92,246,.3)"
+              } : { border: "1px solid transparent" }}>
+              <IconPhoneList className="w-3.5 h-3.5 shrink-0"/>
+              <span>Numbers</span>
             </button>
           </div>
 
           {/* Right */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 z-10">
             {lastFetch && (
               <span className="hidden sm:flex items-center gap-1.5 text-[10px] text-white/30 font-medium px-2.5 py-1 rounded-full border border-white/[.07]"
                 style={{ background: "rgba(255,255,255,.03)" }}>
