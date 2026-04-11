@@ -370,43 +370,23 @@ function PgBtn({ children, disabled, onClick, title }: { children: React.ReactNo
 function AppFooter() {
   const year = new Date().getFullYear();
   return (
-    <footer className="mt-6 pb-8 px-4">
-      {/* Gradient divider */}
-      <div className="relative flex items-center justify-center mb-5">
-        <div className="absolute inset-x-0 h-px"
-          style={{ background: "linear-gradient(to right,transparent,rgba(139,92,246,.22),rgba(99,102,241,.18),transparent)" }}/>
-        <div className="relative px-3 py-0.5 rounded-full border border-white/[.06] flex items-center gap-1.5"
-          style={{ background: "rgba(6,6,16,.9)" }}>
-          <div className="w-1 h-1 rounded-full bg-violet-500/60"/>
-          <div className="w-1 h-1 rounded-full bg-indigo-500/40"/>
-          <div className="w-1 h-1 rounded-full bg-sky-500/30"/>
-        </div>
-      </div>
+    <footer className="mt-8 pb-8 flex flex-col items-center gap-3">
+      {/* Thin gradient rule */}
+      <div className="w-full h-px"
+        style={{ background: "linear-gradient(to right,transparent,rgba(139,92,246,.15),transparent)" }}/>
 
-      {/* Footer content */}
-      <div className="flex flex-col items-center gap-2">
-        <div className="flex items-center gap-3">
-          {/* Brand pill */}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-2xl border border-white/[.06]"
-            style={{ background: "linear-gradient(135deg,rgba(139,92,246,.1),rgba(99,102,241,.06))" }}>
-            <span className="text-[9px] font-medium tracking-[.18em] uppercase text-white/25">Built by</span>
-            <span className="text-[12px] font-black tracking-tight"
-              style={{ background: "linear-gradient(90deg,#a78bfa,#818cf8,#38bdf8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-              Shadow Logic
-            </span>
-            <span className="text-[13px] leading-none">🚀</span>
-          </div>
-
-          {/* Year pill */}
-          <div className="px-2.5 py-1.5 rounded-xl border border-white/[.06]"
-            style={{ background: "rgba(255,255,255,.025)" }}>
-            <span className="text-[9px] font-mono font-semibold text-white/30 tracking-widest">© {year}</span>
-          </div>
-        </div>
-
-        <p className="text-[9px] text-white/15 tracking-[.12em] uppercase font-medium">
-          Zone SMS · Real-time Monitoring
-        </p>
+      {/* Single clean line */}
+      <div className="flex items-center gap-2.5">
+        <span className="text-[10px] font-medium tracking-[.14em] uppercase"
+          style={{ color: "rgba(255,255,255,.18)" }}>Zone SMS</span>
+        <span style={{ color: "rgba(139,92,246,.35)", fontSize: 10 }}>·</span>
+        <span className="text-[10px] font-black tracking-tight"
+          style={{ background: "linear-gradient(90deg,#a78bfa,#818cf8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+          Shadow Logic
+        </span>
+        <span style={{ color: "rgba(255,255,255,.1)", fontSize: 10 }}>·</span>
+        <span className="text-[10px] font-mono"
+          style={{ color: "rgba(255,255,255,.18)" }}>© {year}</span>
       </div>
     </footer>
   );
