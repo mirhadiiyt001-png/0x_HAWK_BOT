@@ -517,7 +517,13 @@ function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label:
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const [tab, setTab] = useState<"messages" | "numbers">("messages");
+  const [tab, setTab] = useState<"messages" | "numbers">(
+    window.location.hash === "#numbers" ? "numbers" : "messages"
+  );
+  const switchTab = (t: "messages" | "numbers") => {
+    setTab(t);
+    window.location.hash = t;
+  };
   const [online, setOnline] = useState(false);
   const [bot, setBot] = useState<BotInfo | null>(null);
   const [lastFetch, setLastFetch] = useState("");
@@ -668,7 +674,7 @@ export default function App() {
           {/* Tabs — absolutely centered */}
           <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1 p-1 rounded-2xl border border-white/[.07]"
             style={{ background: "rgba(255,255,255,.025)" }}>
-            <button onClick={() => setTab("messages")}
+            <button onClick={() => switchTab("messages")}
               className={`relative flex items-center gap-2 text-[11px] font-bold px-5 py-2 rounded-xl transition-all duration-200 whitespace-nowrap tracking-wide ${
                 tab === "messages" ? "text-white" : "text-white/30 hover:text-white/60"}`}
               style={tab === "messages" ? {
@@ -679,7 +685,7 @@ export default function App() {
               <IconEnvelope className="w-3.5 h-3.5 shrink-0"/>
               <span>Messages</span>
             </button>
-            <button onClick={() => setTab("numbers")}
+            <button onClick={() => switchTab("numbers")}
               className={`relative flex items-center gap-2 text-[11px] font-bold px-5 py-2 rounded-xl transition-all duration-200 whitespace-nowrap tracking-wide ${
                 tab === "numbers" ? "text-white" : "text-white/30 hover:text-white/60"}`}
               style={tab === "numbers" ? {
