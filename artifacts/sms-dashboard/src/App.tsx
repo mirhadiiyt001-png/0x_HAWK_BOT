@@ -629,12 +629,6 @@ export default function App() {
                 <div className="flex items-center gap-2.5">
                   <div className="w-1 h-5 rounded-full" style={{ background: "linear-gradient(to bottom,#a78bfa,#818cf8)" }}/>
                   <h2 className="text-sm font-bold text-white">Messages</h2>
-                  {totalSms > 0 && (
-                    <span className="text-[10px] px-2.5 py-0.5 rounded-full border border-white/[.08] text-white/35 font-medium"
-                      style={{ background: "rgba(255,255,255,.04)" }}>
-                      {totalSms} total
-                    </span>
-                  )}
                 </div>
                 <div className="flex items-center p-1 gap-0.5 rounded-2xl border border-white/[.07]"
                   style={{ background: "rgba(255,255,255,.025)" }}>
@@ -703,21 +697,18 @@ export default function App() {
                         <p className="text-[12px] text-slate-300 leading-relaxed mb-3 line-clamp-2">{row.body}</p>
 
                         {/* Meta chips */}
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="inline-flex items-center gap-1 text-[10px] text-white/50 px-2 py-1 rounded-lg bg-white/[.04] border border-white/[.07] font-medium min-w-0 max-w-[130px] sm:max-w-[180px]">
-                            <IconGrid className="w-3 h-3 shrink-0"/>
-                            <span className="truncate">{row.sim}</span>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="inline-flex items-center gap-1 text-[10px] text-white/50 px-2 py-1 rounded-lg bg-white/[.04] border border-white/[.07] font-medium whitespace-nowrap">
+                            <IconGrid className="w-3 h-3 shrink-0"/> {row.sim}
                           </span>
                           {row.device && row.device !== "0" && (
-                            <span className="inline-flex items-center gap-1 text-[10px] text-sky-300/70 px-2 py-1 rounded-lg bg-sky-500/[.07] border border-sky-400/[.12] font-medium max-w-[90px] sm:max-w-[120px]">
-                              <IconPhone className="w-3 h-3 shrink-0"/>
-                              <span className="truncate">{row.device}</span>
+                            <span className="inline-flex items-center gap-1 text-[10px] text-sky-300/70 px-2 py-1 rounded-lg bg-sky-500/[.07] border border-sky-400/[.12] font-medium whitespace-nowrap">
+                              <IconPhone className="w-3 h-3 shrink-0"/> {row.device}
                             </span>
                           )}
                           {row.plan && row.plan !== "0" && (
-                            <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400/70 px-2 py-1 rounded-lg bg-emerald-500/[.07] border border-emerald-500/[.12] font-medium max-w-[80px] sm:max-w-[110px]">
-                              <IconCreditCard className="w-3 h-3 shrink-0"/>
-                              <span className="truncate">{row.plan}</span>
+                            <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400/70 px-2 py-1 rounded-lg bg-emerald-500/[.07] border border-emerald-500/[.12] font-medium whitespace-nowrap">
+                              <IconCreditCard className="w-3 h-3 shrink-0"/> {row.plan}
                             </span>
                           )}
                           <div className="ml-auto flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200 shrink-0">
