@@ -476,23 +476,20 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
     }
 
     const welcome =
-      `🛡  <b>ZONE SMS — BOT ACTIVE</b>  🛡\n` +
-      `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
-      `🟢  <b>STATUS  —  ONLINE &amp; MONITORING</b>\n` +
-      `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n\n` +
-      `💎  <b>FEATURES</b>\n` +
-      `  ⚡️  Auto-refresh every <b>5 seconds</b>\n` +
-      `  🔐  OTP auto-detection &amp; highlight\n` +
-      `  📋  One-tap copy  (OTP / Number / Message)\n` +
-      `  📊  Live SMS &amp; OTP statistics\n` +
-      `  🌐  Multi-language SMS support\n` +
-      `  👥  Owner-gated access control\n\n` +
-      `📌  <b>COMMANDS</b>\n` +
-      `  /stats   →  Live stats &amp; OTP count\n` +
-      `  /status  →  System health check\n` +
-      `  /help    →  Full command guide\n\n` +
-      `▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n` +
-      `✅  <i>Monitoring 24/7 — every new SMS appears here instantly.</i>`;
+      `「 🚀 <b>ZONE SMS MONITOR</b> 」\n` +
+      `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
+      `🟢 <b>ONLINE</b> • ⚡️ <b>ACTIVE</b>\n\n` +
+      `╭─ 🌟 <b>FEATURES</b>\n` +
+      `├ ⚡️ Auto OTP detection\n` +
+      `├ 🔥 Live SMS monitoring\n` +
+      `├ 🗝 One-tap copy\n` +
+      `├ 📊 Real-time statistics\n` +
+      `╰ 🌐 Multi-country support\n\n` +
+      `╭─ ⌨️ <b>COMMANDS</b>\n` +
+      `├ /stats  —  Live statistics\n` +
+      `├ /status —  System health\n` +
+      `╰ /help   —  Command guide\n\n` +
+      `✅ <i>Every new SMS arrives here instantly</i>`;
     await bot.sendMessage(userId, welcome, { parse_mode: "HTML" });
   });
 
