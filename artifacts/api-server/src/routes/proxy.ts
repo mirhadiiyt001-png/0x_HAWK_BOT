@@ -6,12 +6,16 @@ const router: IRouter = Router();
 type Status = "not_tried" | "registered" | "unregistered" | "already_other";
 const VALID: Status[] = ["not_tried", "registered", "unregistered", "already_other"];
 
-const RAILWAY_BASE = "https://0xhawk-production.up.railway.app";
-const RAILWAY_V2_BASE = "https://0xhawk.up.railway.app";
+const RAILWAY_BASE = "https://0xhawk.up.railway.app";
 
-router.get("/proxy/sms", async (_req, res) => {
+router.get("/proxy/sms", async (req, res) => {
   try {
-    const upstream = await fetch(`${RAILWAY_BASE}/?type=sms`);
+    const params = new URLSearchParams({ type: "sms" });
+    const { date1, date2, session } = req.query as Record<string, string | undefined>;
+    if (date1) params.set("date1", date1);
+    if (date2) params.set("date2", date2);
+    if (session) params.set("session", session);
+    const upstream = await fetch(`${RAILWAY_BASE}/?${params.toString()}`);
     const raw = await upstream.arrayBuffer();
     const text = new TextDecoder("utf-8").decode(raw);
     res.setHeader("Content-Type", "application/json");
@@ -30,6 +34,30 @@ router.get("/proxy/numbers", async (_req, res) => {
     res.send(text);
   } catch {
     res.status(502).json({ error: "Failed to fetch numbers data from upstream" });
+  }
+});
+
+router.get("/proxy/health", async (_req, res) => {
+  try {
+    const upstream = await fetch(`${RAILWAY_BASE}/health`);
+    const raw = await upstream.arrayBuffer();
+    const text = new TextDecoder("utf-8").decode(raw);
+    res.setHeader("Content-Type", upstream.headers.get("content-type") ?? "application/json");
+    res.status(upstream.status).send(text);
+  } catch {
+    res.status(502).json({ error: "Failed to fetch health from upstream" });
+  }
+});
+
+router.get("/proxy/docs", async (_req, res) => {
+  try {
+    const upstream = await fetch(`${RAILWAY_BASE}/docs`);
+    const raw = await upstream.arrayBuffer();
+    const text = new TextDecoder("utf-8").decode(raw);
+    res.setHeader("Content-Type", upstream.headers.get("content-type") ?? "text/html");
+    res.status(upstream.status).send(text);
+  } catch {
+    res.status(502).json({ error: "Failed to fetch docs from upstream" });
   }
 });
 
