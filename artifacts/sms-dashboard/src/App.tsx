@@ -447,7 +447,7 @@ function StatusDrop({ status, phone, onChange }: { status: Status; phone: string
       </button>
       {open && (
         <div className="absolute top-full right-0 mt-1 w-44 rounded-xl border border-white/10 p-1 z-50 shadow-2xl"
-          style={{ background: "rgba(15,15,25,.98)", backdropFilter: "blur(20px)" }}>
+          style={{ background: "#0f0f19" }}>
           {(Object.entries(STATUS_CFG) as [Status, typeof STATUS_CFG[Status]][]).map(([k, v]) => (
             <button key={k} onClick={() => { setOpen(false); if (k !== status) onChange(phone, k); }}
               className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all text-left">
@@ -640,7 +640,7 @@ export default function App() {
   return (
     <div className="min-h-screen text-white" style={{ background: "#060610", fontFamily: "'Inter',system-ui,sans-serif" }}>
       <Toaster position="top-center" richColors theme="dark"
-        toastOptions={{ style: { background: "rgba(15,15,25,.95)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,.08)", fontSize: "13px" } }}/>
+        toastOptions={{ style: { background: "#0f0f19", border: "1px solid rgba(255,255,255,.08)", fontSize: "13px" } }}/>
 
       {/* Glow blobs */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
@@ -651,7 +651,7 @@ export default function App() {
 
       {/* Navbar */}
       <nav className="sticky top-0 z-30 border-b border-white/[.06]"
-        style={{ background: "rgba(6,6,16,.92)", backdropFilter: "blur(28px)" }}>
+        style={{ background: "#06060f" }}>
         <div className="relative px-4 sm:px-6 lg:px-8 h-[60px] flex items-center justify-between">
           {/* Logo */}
           <div className="flex items-center gap-3 shrink-0 z-10">
@@ -763,7 +763,7 @@ export default function App() {
 
             {/* Live Feed */}
             <div className="rounded-2xl border border-white/[.06] overflow-hidden"
-              style={{ background: "rgba(10,10,20,.85)", backdropFilter: "blur(16px)" }}>
+              style={{ background: "#0a0a14" }}>
 
               <div className="px-5 py-3.5 border-b border-white/[.05] flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5">

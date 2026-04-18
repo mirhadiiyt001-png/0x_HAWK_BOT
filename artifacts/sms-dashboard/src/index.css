@@ -54,9 +54,7 @@
 }
 
 .glass-card {
-  background: var(--bg-card);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: #0f0f1a;
   border: 1px solid var(--border-subtle);
   border-radius: 14px;
 }
@@ -272,8 +270,7 @@
   position: absolute;
   top: calc(100% + 4px); right: 0;
   min-width: 160px;
-  background: rgba(18, 18, 28, 0.98);
-  backdrop-filter: blur(20px);
+  background: #12121c;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
   padding: 4px;
