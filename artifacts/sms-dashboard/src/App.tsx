@@ -642,12 +642,6 @@ export default function App() {
       <Toaster position="top-center" richColors theme="dark"
         toastOptions={{ style: { background: "#0f0f19", border: "1px solid rgba(255,255,255,.08)", fontSize: "13px" } }}/>
 
-      {/* Glow blobs */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-48 -left-32 w-[500px] h-[500px] bg-violet-600/[.07] rounded-full blur-[130px]"/>
-        <div className="absolute top-1/2 -right-48 w-96 h-96 bg-indigo-600/[.06] rounded-full blur-[110px]"/>
-        <div className="absolute -bottom-32 left-1/3 w-80 h-80 bg-purple-700/[.06] rounded-full blur-[100px]"/>
-      </div>
 
       {/* Navbar */}
       <nav className="sticky top-0 z-30 border-b border-white/[.06]"
@@ -656,7 +650,6 @@ export default function App() {
           {/* Logo */}
           <div className="flex items-center gap-3 shrink-0 z-10">
             <div className="relative w-9 h-9">
-              <div className="absolute inset-0 rounded-xl bg-violet-500/40 blur-lg"/>
               <div className="relative w-9 h-9 rounded-xl flex items-center justify-center border border-violet-400/25"
                 style={{ background: "linear-gradient(135deg,rgba(139,92,246,.6),rgba(99,102,241,.5))" }}>
                 <svg className="w-4 h-4 text-violet-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
