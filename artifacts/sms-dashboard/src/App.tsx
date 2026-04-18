@@ -447,7 +447,7 @@ function StatusDrop({ status, phone, onChange }: { status: Status; phone: string
       </button>
       {open && (
         <div className="absolute top-full right-0 mt-1 w-44 rounded-xl border border-white/10 p-1 z-50 shadow-2xl"
-          style={{ background: "rgba(15,15,25,.98)", backdropFilter: "blur(20px)" }}>
+          style={{ background: "rgba(15,15,25,1)" }}>
           {(Object.entries(STATUS_CFG) as [Status, typeof STATUS_CFG[Status]][]).map(([k, v]) => (
             <button key={k} onClick={() => { setOpen(false); if (k !== status) onChange(phone, k); }}
               className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all text-left">
@@ -640,21 +640,16 @@ export default function App() {
   return (
     <div className="min-h-screen text-white" style={{ background: "#060610", fontFamily: "'Inter',system-ui,sans-serif" }}>
       <Toaster position="top-center" richColors theme="dark"
-        toastOptions={{ style: { background: "rgba(15,15,25,.95)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,.08)", fontSize: "13px" } }}/>
+        toastOptions={{ style: { background: "rgba(18,18,28,1)", border: "1px solid rgba(255,255,255,.08)", fontSize: "13px" } }}/>
 
-      {/* Subtle accent glow — top only */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-32 -left-20 w-[420px] h-[420px] bg-violet-600/[.05] rounded-full blur-[90px]"/>
-      </div>
 
       {/* Navbar */}
       <nav className="sticky top-0 z-30 border-b border-white/[.06]"
-        style={{ background: "rgba(6,6,16,.92)", backdropFilter: "blur(28px)" }}>
+        style={{ background: "#06060f" }}>
         <div className="relative px-4 sm:px-6 lg:px-8 h-[60px] flex items-center justify-between">
           {/* Logo */}
           <div className="flex items-center gap-3 shrink-0 z-10">
             <div className="relative w-9 h-9">
-              <div className="absolute inset-0 rounded-xl bg-violet-500/40 blur-lg"/>
               <div className="relative w-9 h-9 rounded-xl flex items-center justify-center border border-violet-400/25"
                 style={{ background: "linear-gradient(135deg,rgba(139,92,246,.6),rgba(99,102,241,.5))" }}>
                 <svg className="w-4 h-4 text-violet-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -761,7 +756,7 @@ export default function App() {
 
             {/* Live Feed */}
             <div className="rounded-2xl border border-white/[.06] overflow-hidden"
-              style={{ background: "rgba(10,10,20,.85)", backdropFilter: "blur(16px)" }}>
+              style={{ background: "#0a0a14" }}>
 
               <div className="px-5 py-3.5 border-b border-white/[.05] flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5">
