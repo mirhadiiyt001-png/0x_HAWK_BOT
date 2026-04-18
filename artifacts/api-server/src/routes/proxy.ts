@@ -1,64 +1,43 @@
 import { Router, type IRouter } from "express";
 import { pool } from "../lib/db";
+import { fetchSmsCached as fetchSms, fetchNumbersCached as fetchNumbers } from "../lib/upstream";
 
 const router: IRouter = Router();
 
 type Status = "not_tried" | "registered" | "unregistered" | "already_other";
 const VALID: Status[] = ["not_tried", "registered", "unregistered", "already_other"];
 
-const RAILWAY_BASE = "https://0xhawk-production.up.railway.app";
-
 router.get("/proxy/sms", async (req, res) => {
   try {
-    const params = new URLSearchParams({ type: "sms" });
     const { date1, date2, session } = req.query as Record<string, string | undefined>;
-    if (date1) params.set("date1", date1);
-    if (date2) params.set("date2", date2);
-    if (session) params.set("session", session);
-    const upstream = await fetch(`${RAILWAY_BASE}/?${params.toString()}`);
-    const raw = await upstream.arrayBuffer();
-    const text = new TextDecoder("utf-8").decode(raw);
+    const result = await fetchSms({ date1, date2, session });
     res.setHeader("Content-Type", "application/json");
-    res.send(text);
-  } catch {
-    res.status(502).json({ error: "Failed to fetch SMS data from upstream" });
+    res.json(result);
+  } catch (e) {
+    console.error("[proxy/sms] upstream error:", (e as Error).message);
+    res.status(502).json({ success: false, error: "Failed to fetch SMS data from upstream" });
   }
 });
 
-router.get("/proxy/numbers", async (_req, res) => {
+router.get("/proxy/numbers", async (req, res) => {
   try {
-    const upstream = await fetch(`${RAILWAY_BASE}/?type=numbers`);
-    const raw = await upstream.arrayBuffer();
-    const text = new TextDecoder("utf-8").decode(raw);
+    const { session } = req.query as Record<string, string | undefined>;
+    const result = await fetchNumbers({ session });
     res.setHeader("Content-Type", "application/json");
-    res.send(text);
-  } catch {
-    res.status(502).json({ error: "Failed to fetch numbers data from upstream" });
+    res.json(result);
+  } catch (e) {
+    console.error("[proxy/numbers] upstream error:", (e as Error).message);
+    res.status(502).json({ success: false, error: "Failed to fetch numbers data from upstream" });
   }
 });
 
 router.get("/proxy/health", async (_req, res) => {
-  try {
-    const upstream = await fetch(`${RAILWAY_BASE}/health`);
-    const raw = await upstream.arrayBuffer();
-    const text = new TextDecoder("utf-8").decode(raw);
-    res.setHeader("Content-Type", upstream.headers.get("content-type") ?? "application/json");
-    res.status(upstream.status).send(text);
-  } catch {
-    res.status(502).json({ error: "Failed to fetch health from upstream" });
-  }
-});
-
-router.get("/proxy/docs", async (_req, res) => {
-  try {
-    const upstream = await fetch(`${RAILWAY_BASE}/docs`);
-    const raw = await upstream.arrayBuffer();
-    const text = new TextDecoder("utf-8").decode(raw);
-    res.setHeader("Content-Type", upstream.headers.get("content-type") ?? "text/html");
-    res.status(upstream.status).send(text);
-  } catch {
-    res.status(502).json({ error: "Failed to fetch docs from upstream" });
-  }
+  res.json({
+    status: "healthy",
+    service: "0x_HAWK ZONE SMS API (local)",
+    uptime: process.uptime(),
+    time: new Date().toISOString(),
+  });
 });
 
 router.get("/proxy/bot-info", async (_req, res) => {
@@ -141,67 +120,6 @@ router.delete("/proxy/statuses/:phone", async (req, res) => {
   } catch (e) {
     console.error("DB delete error:", e);
     res.status(500).json({ error: "Database error" });
-  }
-});
-
-// ─── New v2 API endpoints (0xhawk.up.railway.app) ───────────────────────────
-// SMS with optional date range + session override
-//   /proxy/v2/sms
-//   /proxy/v2/sms?date1=2026-04-15&date2=2026-04-18
-//   /proxy/v2/sms?session=PHPSESSID
-router.get("/proxy/v2/sms", async (req, res) => {
-  try {
-    const params = new URLSearchParams({ type: "sms" });
-    const { date1, date2, session } = req.query as Record<string, string | undefined>;
-    if (date1) params.set("date1", date1);
-    if (date2) params.set("date2", date2);
-    if (session) params.set("session", session);
-    const upstream = await fetch(`${RAILWAY_V2_BASE}/?${params.toString()}`);
-    const raw = await upstream.arrayBuffer();
-    const text = new TextDecoder("utf-8").decode(raw);
-    res.setHeader("Content-Type", "application/json");
-    res.send(text);
-  } catch {
-    res.status(502).json({ error: "Failed to fetch v2 SMS data from upstream" });
-  }
-});
-
-// Numbers (v2)
-router.get("/proxy/v2/numbers", async (_req, res) => {
-  try {
-    const upstream = await fetch(`${RAILWAY_V2_BASE}/?type=numbers`);
-    const raw = await upstream.arrayBuffer();
-    const text = new TextDecoder("utf-8").decode(raw);
-    res.setHeader("Content-Type", "application/json");
-    res.send(text);
-  } catch {
-    res.status(502).json({ error: "Failed to fetch v2 numbers data from upstream" });
-  }
-});
-
-// Health check (v2)
-router.get("/proxy/v2/health", async (_req, res) => {
-  try {
-    const upstream = await fetch(`${RAILWAY_V2_BASE}/health`);
-    const raw = await upstream.arrayBuffer();
-    const text = new TextDecoder("utf-8").decode(raw);
-    res.setHeader("Content-Type", upstream.headers.get("content-type") ?? "application/json");
-    res.status(upstream.status).send(text);
-  } catch {
-    res.status(502).json({ error: "Failed to fetch v2 health from upstream" });
-  }
-});
-
-// Docs (v2) — pass through HTML/JSON
-router.get("/proxy/v2/docs", async (_req, res) => {
-  try {
-    const upstream = await fetch(`${RAILWAY_V2_BASE}/docs`);
-    const raw = await upstream.arrayBuffer();
-    const text = new TextDecoder("utf-8").decode(raw);
-    res.setHeader("Content-Type", upstream.headers.get("content-type") ?? "text/html");
-    res.status(upstream.status).send(text);
-  } catch {
-    res.status(502).json({ error: "Failed to fetch v2 docs from upstream" });
   }
 });
 

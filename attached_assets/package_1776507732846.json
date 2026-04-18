@@ -1,0 +1,15 @@
+{
+  "name": "0x_hawk_zone_sms_api",
+  "version": "2.0.0",
+  "description": "0x_HAWK ZONE SMS Proxy API - Numbers & Reports with Custom Date",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": "20.x || 22.x"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

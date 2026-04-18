@@ -1,24 +1,16 @@
 import { Router, type IRouter } from "express";
+import { fetchSmsCached as fetchSms } from "../lib/upstream";
 
 const router: IRouter = Router();
 
-const API_URL = "https://0xhawk-production.up.railway.app/?type=sms";
-
-router.get("/sms-stats", async (req, res) => {
+router.get("/sms-stats", async (_req, res) => {
   try {
-    const upstream = await fetch(API_URL);
-    const raw = await upstream.arrayBuffer();
-    const text = new TextDecoder("utf-8").decode(raw);
-    const parsed = JSON.parse(text) as {
-      success: boolean;
-      data: {
-        iTotalRecords: string;
-        iTotalDisplayRecords: string;
-        aaData: unknown[][];
-        sEcho: number;
-      };
+    const parsed = await fetchSms();
+    const data = parsed.data as {
+      iTotalRecords: string;
+      iTotalDisplayRecords: string;
+      aaData: unknown[][];
     };
-    const data = parsed.data;
 
     const allRows = data.aaData ?? [];
 
