@@ -447,7 +447,7 @@ function StatusDrop({ status, phone, onChange }: { status: Status; phone: string
       </button>
       {open && (
         <div className="absolute top-full right-0 mt-1 w-44 rounded-xl border border-white/10 p-1 z-50 shadow-2xl"
-          style={{ background: "rgba(15,15,25,1)" }}>
+          style={{ background: "rgba(15,15,25,.98)", backdropFilter: "blur(20px)" }}>
           {(Object.entries(STATUS_CFG) as [Status, typeof STATUS_CFG[Status]][]).map(([k, v]) => (
             <button key={k} onClick={() => { setOpen(false); if (k !== status) onChange(phone, k); }}
               className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all text-left">
@@ -640,16 +640,23 @@ export default function App() {
   return (
     <div className="min-h-screen text-white" style={{ background: "#060610", fontFamily: "'Inter',system-ui,sans-serif" }}>
       <Toaster position="top-center" richColors theme="dark"
-        toastOptions={{ style: { background: "rgba(18,18,28,1)", border: "1px solid rgba(255,255,255,.08)", fontSize: "13px" } }}/>
+        toastOptions={{ style: { background: "rgba(15,15,25,.95)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,.08)", fontSize: "13px" } }}/>
 
+      {/* Glow blobs */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute -top-48 -left-32 w-[500px] h-[500px] bg-violet-600/[.07] rounded-full blur-[130px]"/>
+        <div className="absolute top-1/2 -right-48 w-96 h-96 bg-indigo-600/[.06] rounded-full blur-[110px]"/>
+        <div className="absolute -bottom-32 left-1/3 w-80 h-80 bg-purple-700/[.06] rounded-full blur-[100px]"/>
+      </div>
 
       {/* Navbar */}
       <nav className="sticky top-0 z-30 border-b border-white/[.06]"
-        style={{ background: "#06060f" }}>
+        style={{ background: "rgba(6,6,16,.92)", backdropFilter: "blur(28px)" }}>
         <div className="relative px-4 sm:px-6 lg:px-8 h-[60px] flex items-center justify-between">
           {/* Logo */}
           <div className="flex items-center gap-3 shrink-0 z-10">
             <div className="relative w-9 h-9">
+              <div className="absolute inset-0 rounded-xl bg-violet-500/40 blur-lg"/>
               <div className="relative w-9 h-9 rounded-xl flex items-center justify-center border border-violet-400/25"
                 style={{ background: "linear-gradient(135deg,rgba(139,92,246,.6),rgba(99,102,241,.5))" }}>
                 <svg className="w-4 h-4 text-violet-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -715,61 +722,82 @@ export default function App() {
 
         {/* ══ MESSAGES TAB ══ */}
         {tab === "messages" && (
-          <motion.div key="msg" className="main-content"
+          <motion.div key="msg" className="px-4 sm:px-6 lg:px-8 py-6 space-y-5"
             initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}>
 
-            {/* Stat Cards — same as Numbers tab */}
-            <div className="stats-grid">
-              <StatCard icon={<IconEnvelope className="w-5 h-5 text-indigo-300"/>} label="Total SMS" value={aSms} color="blue"/>
-              <StatCard icon={<IconKey className="w-5 h-5 text-violet-300"/>} label="OTPs This Page" value={aOtps} color="violet"/>
-              <div className="stat-card glass-card p-3 sm:p-4">
-                <div className="stat-icon mb-3" style={{ background: online ? "rgba(16,185,129,.12)" : "rgba(239,68,68,.1)" }}>
+            {/* Stat Cards */}
+            <div className="grid grid-cols-3 gap-3 sm:gap-4">
+              {/* Total SMS */}
+              <div className="rounded-2xl border border-blue-500/[.1] p-4 sm:p-5 relative overflow-hidden"
+                style={{ background: "linear-gradient(135deg,rgba(59,130,246,.08),rgba(37,99,235,.04))" }}>
+                <div className="absolute inset-0 bg-gradient-to-br from-white/[.02] to-transparent"/>
+                <div className="w-9 h-9 rounded-xl bg-blue-500/15 flex items-center justify-center mb-3">
+                  <IconEnvelope className="w-5 h-5 text-blue-400"/>
+                </div>
+                <p className="text-3xl sm:text-4xl font-black text-blue-300 tabular-nums">{aSms}</p>
+                <p className="text-[11px] text-white/30 mt-1 font-medium">Total SMS</p>
+              </div>
+
+              {/* OTPs */}
+              <div className="rounded-2xl border border-violet-500/[.12] p-4 sm:p-5 relative overflow-hidden"
+                style={{ background: "linear-gradient(135deg,rgba(139,92,246,.1),rgba(99,102,241,.05))" }}>
+                <div className="absolute inset-0 bg-gradient-to-br from-white/[.02] to-transparent"/>
+                <div className="w-9 h-9 rounded-xl bg-violet-500/15 flex items-center justify-center mb-3">
+                  <IconKey className="w-5 h-5 text-violet-300"/>
+                </div>
+                <p className="text-3xl sm:text-4xl font-black text-violet-300 tabular-nums">{aOtps}</p>
+                <p className="text-[11px] text-white/30 mt-1 font-medium">OTPs This Page</p>
+              </div>
+
+              {/* Bot Status */}
+              <div className={`rounded-2xl border p-4 sm:p-5 relative overflow-hidden ${online ? "border-emerald-500/[.12]" : "border-red-500/[.1]"}`}
+                style={{ background: online ? "linear-gradient(135deg,rgba(16,185,129,.09),rgba(5,150,105,.04))" : "linear-gradient(135deg,rgba(239,68,68,.08),rgba(185,28,28,.03))" }}>
+                <div className="absolute inset-0 bg-gradient-to-br from-white/[.02] to-transparent"/>
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${online ? "bg-emerald-500/15" : "bg-red-500/15"}`}>
                   <IconSignal className={`w-5 h-5 ${online ? "text-emerald-400" : "text-red-400"}`}/>
                 </div>
-                <p className={`text-2xl font-black ${online ? "text-emerald-400" : "text-red-400"}`}>{online ? "Online" : "Offline"}</p>
-                <p className="text-[10px] uppercase tracking-wide text-slate-500 mt-1 font-medium">Bot Status</p>
+                <p className={`text-2xl sm:text-3xl font-black ${online ? "text-emerald-300" : "text-red-300"}`}>{online ? "Online" : "Offline"}</p>
+                <p className="text-[11px] text-white/30 mt-1 font-medium">Bot Status</p>
               </div>
             </div>
 
-            {/* Messages Panel — same shell as Numbers panel */}
-            <div className="glass-card p-3 sm:p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="violet-bar"/>
-                  <div>
-                    <h2 className="text-base font-bold text-white">Messages</h2>
-                    <p className="text-[10px] text-slate-500">{filtered.length} shown · {rows.length} total</p>
-                  </div>
-                </div>
-                {smsPages > 1 && <span className="page-indicator">{smsPage}/{smsPages}</span>}
-              </div>
+            {/* Live Feed */}
+            <div className="rounded-2xl border border-white/[.06] overflow-hidden"
+              style={{ background: "rgba(10,10,20,.85)", backdropFilter: "blur(16px)" }}>
 
-              {/* Filter Tabs — same style as Numbers */}
-              <div className="filter-tabs mb-3">
-                {([
-                  { k: "all", label: "All",  color: "#94a3b8", emoji: "📋", count: rows.length },
-                  { k: "otp", label: "OTP",  color: "#a855f7", emoji: "⚡", count: rows.filter(r => r.isOtp).length },
-                  { k: "sms", label: "SMS",  color: "#3b82f6", emoji: "📨", count: rows.filter(r => !r.isOtp).length },
-                ] as const).map(f => (
-                  <button key={f.k} onClick={() => setSmsFilter(f.k)}
-                    className={`filter-tab ${smsFilter === f.k ? "active" : ""}`}
-                    style={{ ["--tab-color" as string]: f.color }}>
-                    <span>{f.emoji}</span>
-                    <span>{f.label}</span>
-                    <span className="filter-count">{f.count}</span>
-                  </button>
-                ))}
+              <div className="px-5 py-3.5 border-b border-white/[.05] flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-1 h-5 rounded-full" style={{ background: "linear-gradient(to bottom,#a78bfa,#818cf8)" }}/>
+                  <h2 className="text-sm font-bold text-white">Messages</h2>
+                </div>
+                <div className="flex items-center p-1 gap-0.5 rounded-2xl border border-white/[.07]"
+                  style={{ background: "rgba(255,255,255,.025)" }}>
+                  {([
+                    { k: "all",  label: "All",      icon: null },
+                    { k: "otp",  label: "OTP",      icon: "⚡" },
+                    { k: "sms",  label: "SMS",       icon: "📨" },
+                  ] as const).map(({ k, label, icon }) => (
+                    <button key={k} onClick={() => setSmsFilter(k)}
+                      className={`flex items-center gap-1.5 text-[11px] font-bold px-3.5 py-1.5 rounded-xl transition-all duration-200 ${
+                        smsFilter === k ? "text-white" : "text-white/30 hover:text-white/55"}`}
+                      style={smsFilter === k ? {
+                        background: "linear-gradient(135deg,rgba(109,40,217,.55),rgba(79,70,229,.4))",
+                        boxShadow: "0 1px 12px rgba(109,40,217,.35), inset 0 1px 0 rgba(255,255,255,.1)"
+                      } : {}}>
+                      {icon && <span className="text-[12px] leading-none">{icon}</span>}
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {smsLoading ? (
-                <div className="empty-state">
-                  <div className="spinner mb-3"/>
-                  <p className="text-sm text-slate-500">Loading…</p>
+                <div className="flex items-center justify-center gap-3 py-24 text-white/20">
+                  <div className="w-5 h-5 rounded-full border-2 border-violet-500/30 border-t-violet-400 animate-spin"/>
+                  <span className="text-sm">Connecting…</span>
                 </div>
               ) : paged.length === 0 ? (
-                <div className="empty-state">
-                  <p className="text-sm text-slate-500">No messages yet</p>
-                </div>
+                <div className="py-24 text-center text-white/20 text-sm">No messages yet</div>
               ) : (
                 <div>
                   {paged.map((row, i) => {
