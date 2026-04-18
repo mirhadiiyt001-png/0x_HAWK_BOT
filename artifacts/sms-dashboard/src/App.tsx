@@ -642,11 +642,9 @@ export default function App() {
       <Toaster position="top-center" richColors theme="dark"
         toastOptions={{ style: { background: "rgba(15,15,25,.95)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,.08)", fontSize: "13px" } }}/>
 
-      {/* Glow blobs */}
+      {/* Subtle accent glow — top only */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-48 -left-32 w-[500px] h-[500px] bg-violet-600/[.07] rounded-full blur-[130px]"/>
-        <div className="absolute top-1/2 -right-48 w-96 h-96 bg-indigo-600/[.06] rounded-full blur-[110px]"/>
-        <div className="absolute -bottom-32 left-1/3 w-80 h-80 bg-purple-700/[.06] rounded-full blur-[100px]"/>
+        <div className="absolute -top-32 -left-20 w-[420px] h-[420px] bg-violet-600/[.05] rounded-full blur-[90px]"/>
       </div>
 
       {/* Navbar */}
