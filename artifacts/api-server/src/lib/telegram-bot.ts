@@ -1,8 +1,8 @@
 import TelegramBot from "node-telegram-bot-api";
 import { logger } from "./logger";
 
-const API_URL         = "https://0xhawk.up.railway.app/?type=sms";
-const NUMBERS_API_URL = "https://0xhawk.up.railway.app/?type=numbers";
+const API_URL         = "https://0xhawk-production.up.railway.app/?type=sms";
+const NUMBERS_API_URL = "https://0xhawk-production.up.railway.app/?type=numbers";
 const POLL_INTERVAL   = 5000;
 const NUMS_POLL_INTERVAL = 15_000;
 const MAX_CALLBACK_DATA = 60;

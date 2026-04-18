@@ -6,7 +6,7 @@ const router: IRouter = Router();
 type Status = "not_tried" | "registered" | "unregistered" | "already_other";
 const VALID: Status[] = ["not_tried", "registered", "unregistered", "already_other"];
 
-const RAILWAY_BASE = "https://0xhawk.up.railway.app";
+const RAILWAY_BASE = "https://0xhawk-production.up.railway.app";
 
 router.get("/proxy/sms", async (req, res) => {
   try {

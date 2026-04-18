@@ -715,82 +715,61 @@ export default function App() {
 
         {/* ══ MESSAGES TAB ══ */}
         {tab === "messages" && (
-          <motion.div key="msg" className="px-4 sm:px-6 lg:px-8 py-6 space-y-5"
+          <motion.div key="msg" className="main-content"
             initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}>
 
-            {/* Stat Cards */}
-            <div className="grid grid-cols-3 gap-3 sm:gap-4">
-              {/* Total SMS */}
-              <div className="rounded-2xl border border-blue-500/[.1] p-4 sm:p-5 relative overflow-hidden"
-                style={{ background: "linear-gradient(135deg,rgba(59,130,246,.08),rgba(37,99,235,.04))" }}>
-                <div className="absolute inset-0 bg-gradient-to-br from-white/[.02] to-transparent"/>
-                <div className="w-9 h-9 rounded-xl bg-blue-500/15 flex items-center justify-center mb-3">
-                  <IconEnvelope className="w-5 h-5 text-blue-400"/>
-                </div>
-                <p className="text-3xl sm:text-4xl font-black text-blue-300 tabular-nums">{aSms}</p>
-                <p className="text-[11px] text-white/30 mt-1 font-medium">Total SMS</p>
-              </div>
-
-              {/* OTPs */}
-              <div className="rounded-2xl border border-violet-500/[.12] p-4 sm:p-5 relative overflow-hidden"
-                style={{ background: "linear-gradient(135deg,rgba(139,92,246,.1),rgba(99,102,241,.05))" }}>
-                <div className="absolute inset-0 bg-gradient-to-br from-white/[.02] to-transparent"/>
-                <div className="w-9 h-9 rounded-xl bg-violet-500/15 flex items-center justify-center mb-3">
-                  <IconKey className="w-5 h-5 text-violet-300"/>
-                </div>
-                <p className="text-3xl sm:text-4xl font-black text-violet-300 tabular-nums">{aOtps}</p>
-                <p className="text-[11px] text-white/30 mt-1 font-medium">OTPs This Page</p>
-              </div>
-
-              {/* Bot Status */}
-              <div className={`rounded-2xl border p-4 sm:p-5 relative overflow-hidden ${online ? "border-emerald-500/[.12]" : "border-red-500/[.1]"}`}
-                style={{ background: online ? "linear-gradient(135deg,rgba(16,185,129,.09),rgba(5,150,105,.04))" : "linear-gradient(135deg,rgba(239,68,68,.08),rgba(185,28,28,.03))" }}>
-                <div className="absolute inset-0 bg-gradient-to-br from-white/[.02] to-transparent"/>
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${online ? "bg-emerald-500/15" : "bg-red-500/15"}`}>
+            {/* Stat Cards — same as Numbers tab */}
+            <div className="stats-grid">
+              <StatCard icon={<IconEnvelope className="w-5 h-5 text-indigo-300"/>} label="Total SMS" value={aSms} color="blue"/>
+              <StatCard icon={<IconKey className="w-5 h-5 text-violet-300"/>} label="OTPs This Page" value={aOtps} color="violet"/>
+              <div className="stat-card glass-card p-3 sm:p-4">
+                <div className="stat-icon mb-3" style={{ background: online ? "rgba(16,185,129,.12)" : "rgba(239,68,68,.1)" }}>
                   <IconSignal className={`w-5 h-5 ${online ? "text-emerald-400" : "text-red-400"}`}/>
                 </div>
-                <p className={`text-2xl sm:text-3xl font-black ${online ? "text-emerald-300" : "text-red-300"}`}>{online ? "Online" : "Offline"}</p>
-                <p className="text-[11px] text-white/30 mt-1 font-medium">Bot Status</p>
+                <p className={`text-2xl font-black ${online ? "text-emerald-400" : "text-red-400"}`}>{online ? "Online" : "Offline"}</p>
+                <p className="text-[10px] uppercase tracking-wide text-slate-500 mt-1 font-medium">Bot Status</p>
               </div>
             </div>
 
-            {/* Live Feed */}
-            <div className="rounded-2xl border border-white/[.06] overflow-hidden"
-              style={{ background: "#0a0a14" }}>
+            {/* Messages Panel — same shell as Numbers panel */}
+            <div className="glass-card p-3 sm:p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="violet-bar"/>
+                  <div>
+                    <h2 className="text-base font-bold text-white">Messages</h2>
+                    <p className="text-[10px] text-slate-500">{filtered.length} shown · {rows.length} total</p>
+                  </div>
+                </div>
+                {smsPages > 1 && <span className="page-indicator">{smsPage}/{smsPages}</span>}
+              </div>
 
-              <div className="px-5 py-3.5 border-b border-white/[.05] flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-1 h-5 rounded-full" style={{ background: "linear-gradient(to bottom,#a78bfa,#818cf8)" }}/>
-                  <h2 className="text-sm font-bold text-white">Messages</h2>
-                </div>
-                <div className="flex items-center p-1 gap-0.5 rounded-2xl border border-white/[.07]"
-                  style={{ background: "rgba(255,255,255,.025)" }}>
-                  {([
-                    { k: "all",  label: "All",      icon: null },
-                    { k: "otp",  label: "OTP",      icon: "⚡" },
-                    { k: "sms",  label: "SMS",       icon: "📨" },
-                  ] as const).map(({ k, label, icon }) => (
-                    <button key={k} onClick={() => setSmsFilter(k)}
-                      className={`flex items-center gap-1.5 text-[11px] font-bold px-3.5 py-1.5 rounded-xl transition-all duration-200 ${
-                        smsFilter === k ? "text-white" : "text-white/30 hover:text-white/55"}`}
-                      style={smsFilter === k ? {
-                        background: "linear-gradient(135deg,rgba(109,40,217,.55),rgba(79,70,229,.4))",
-                        boxShadow: "0 1px 12px rgba(109,40,217,.35), inset 0 1px 0 rgba(255,255,255,.1)"
-                      } : {}}>
-                      {icon && <span className="text-[12px] leading-none">{icon}</span>}
-                      {label}
-                    </button>
-                  ))}
-                </div>
+              {/* Filter Tabs — same style as Numbers */}
+              <div className="filter-tabs mb-3">
+                {([
+                  { k: "all", label: "All",  color: "#94a3b8", emoji: "📋", count: rows.length },
+                  { k: "otp", label: "OTP",  color: "#a855f7", emoji: "⚡", count: rows.filter(r => r.isOtp).length },
+                  { k: "sms", label: "SMS",  color: "#3b82f6", emoji: "📨", count: rows.filter(r => !r.isOtp).length },
+                ] as const).map(f => (
+                  <button key={f.k} onClick={() => setSmsFilter(f.k)}
+                    className={`filter-tab ${smsFilter === f.k ? "active" : ""}`}
+                    style={{ ["--tab-color" as string]: f.color }}>
+                    <span>{f.emoji}</span>
+                    <span>{f.label}</span>
+                    <span className="filter-count">{f.count}</span>
+                  </button>
+                ))}
               </div>
 
               {smsLoading ? (
-                <div className="flex items-center justify-center gap-3 py-24 text-white/20">
-                  <div className="w-5 h-5 rounded-full border-2 border-violet-500/30 border-t-violet-400 animate-spin"/>
-                  <span className="text-sm">Connecting…</span>
+                <div className="empty-state">
+                  <div className="spinner mb-3"/>
+                  <p className="text-sm text-slate-500">Loading…</p>
                 </div>
               ) : paged.length === 0 ? (
-                <div className="py-24 text-center text-white/20 text-sm">No messages yet</div>
+                <div className="empty-state">
+                  <p className="text-sm text-slate-500">No messages yet</p>
+                </div>
               ) : (
                 <div>
                   {paged.map((row, i) => {

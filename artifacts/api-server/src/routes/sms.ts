@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 
 const router: IRouter = Router();
 
-const API_URL = "https://0xhawk.up.railway.app/?type=sms";
+const API_URL = "https://0xhawk-production.up.railway.app/?type=sms";
 
 router.get("/sms-stats", async (req, res) => {
   try {
