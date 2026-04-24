@@ -647,7 +647,12 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
   });
 
   // ── Polling loop ──
+  // Re-entrancy guard: prevents two poll() runs from processing the same SMS
+  // batch concurrently when fetchSms is slow (>5s) and setInterval fires again.
+  let pollInProgress = false;
   const poll = async () => {
+    if (pollInProgress) return;
+    pollInProgress = true;
     try {
       const data = (await fetchSms()) as unknown as ApiResponse;
       const rows = data.data?.aaData ?? [];
@@ -726,17 +731,33 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
             logger.info({ phone: sms.phone }, "SMS sent to Telegram");
           }
         } catch (sendErr) {
-          logger.error({ sendErr }, "Failed to send with keyboard, retrying without");
-          try {
-            const text = hasOtp && otp ? formatOtpMessage(sms) : formatSmsMessage(sms);
-            await bot.sendMessage(chatId, text, { parse_mode: "HTML" });
-          } catch (fallbackErr) {
-            logger.error({ fallbackErr }, "Fallback send also failed");
+          // IMPORTANT: Do NOT auto-retry on send failure.
+          // Telegram may have already delivered the message but the HTTP response
+          // timed out — retrying would create the duplicate-send bug.
+          // Only retry if the failure is clearly a markup/keyboard format issue
+          // (ETELEGRAM 400 Bad Request), since those never actually deliver.
+          const errMsg = String((sendErr as Error)?.message ?? "");
+          const isMarkupError =
+            errMsg.includes("ETELEGRAM") &&
+            (errMsg.includes("Bad Request") || errMsg.includes("BUTTON_DATA_INVALID") || errMsg.includes("can't parse"));
+          if (isMarkupError) {
+            logger.warn({ sendErr: errMsg, phone: sms.phone }, "Markup error — retrying without keyboard");
+            try {
+              const text = hasOtp && otp ? formatOtpMessage(sms) : formatSmsMessage(sms);
+              await bot.sendMessage(chatId, text, { parse_mode: "HTML" });
+            } catch (fallbackErr) {
+              logger.error({ fallbackErr }, "Plain-text fallback also failed");
+            }
+          } else {
+            // Network/timeout/etc — assume Telegram may have delivered. Don't resend.
+            logger.error({ sendErr: errMsg, phone: sms.phone }, "Send failed (not retrying to avoid duplicates)");
           }
         }
       }
     } catch (err) {
       logger.error({ err }, "Error polling SMS API");
+    } finally {
+      pollInProgress = false;
     }
   };
 
