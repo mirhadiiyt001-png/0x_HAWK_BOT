@@ -226,15 +226,18 @@ function withIcon(btn: RawBtn, emoji: string): RawBtn {
   return id ? { ...btn, icon_custom_emoji_id: id } : btn;
 }
 
+// Color-block emoji prefixes — Telegram doesn't expose a native button color
+// API, so we simulate it with full-color square/circle emojis that render
+// uniformly across all clients.
 function buildOtpRows(sms: SmsMessage, storeId: string): RawBtn[][] {
   const otp = extractOtp(sms.body)!;
   return [
     [
-      withIcon({ text: `Copy OTP Code`, callback_data: safeCallbackData("otp:", otp) }, "🔓"),
-      withIcon({ text: `Copy Number`, callback_data: safeCallbackData("num:", sms.phone) }, "📲"),
+      withIcon({ text: `🟢 Copy OTP Code`, callback_data: safeCallbackData("otp:", otp) }, "🔓"),
+      withIcon({ text: `🔵 Copy Number`,  callback_data: safeCallbackData("num:", sms.phone) }, "📲"),
     ],
     [
-      withIcon({ text: `Copy Full Message`, callback_data: `msg:${storeId}` }, "💬"),
+      withIcon({ text: `🟡 Copy Full Message`, callback_data: `msg:${storeId}` }, "💬"),
     ],
   ];
 }
@@ -242,8 +245,8 @@ function buildOtpRows(sms: SmsMessage, storeId: string): RawBtn[][] {
 function buildSmsRows(sms: SmsMessage, storeId: string): RawBtn[][] {
   return [
     [
-      withIcon({ text: `Copy Number`, callback_data: safeCallbackData("num:", sms.phone) }, "📲"),
-      withIcon({ text: `Copy Message`, callback_data: `msg:${storeId}` }, "💬"),
+      withIcon({ text: `🔵 Copy Number`,  callback_data: safeCallbackData("num:", sms.phone) }, "📲"),
+      withIcon({ text: `🟡 Copy Message`, callback_data: `msg:${storeId}` }, "💬"),
     ],
   ];
 }
@@ -389,8 +392,8 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
       `<i>Approve or decline below.</i>`;
 
     const approveRows: RawBtn[][] = [[
-      withIcon({ text: "Approve", callback_data: `approve:${userId}` }, "✅"),
-      withIcon({ text: "Decline", callback_data: `decline:${userId}` }, "❌"),
+      withIcon({ text: "🟢 Approve", callback_data: `approve:${userId}` }, "✅"),
+      withIcon({ text: "🔴 Decline", callback_data: `decline:${userId}` }, "❌"),
     ]];
     await rawSend({ token: token!, chatId: ownerId, text, rows: approveRows });
   }
