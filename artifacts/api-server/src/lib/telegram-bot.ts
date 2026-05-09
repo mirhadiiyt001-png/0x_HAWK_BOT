@@ -106,20 +106,18 @@ function parseSmsRow(row: unknown[]): SmsMessage {
 
 function extractOtp(text: string): string | null {
   const patterns = [
-    // Keyword before digit
-    /(?:OTP|otp|code|رمز|کد|verification|verify|confirm|auth|pin|passcode|пароль|код|senha|doğrulama|mã)[^0-9]*(\d{4,8})/i,
-    // Digit before keyword
-    /(\d{4,8})[^0-9]*(?:OTP|otp|code|کد|رمز|verification|verify|confirm|пароль|код)/i,
+    // Keyword before digit (allow up to 16 digits for long confirmation codes)
+    /(?:OTP|otp|code|رمز|کد|verification|verify|confirm(?:ation)?|auth|pin|passcode|пароль|код|senha|doğrulama|mã)[^0-9]{0,40}(\d{4,16})/i,
+    // Digit before keyword: e.g. "264169938393 - phone number confirmation code"
+    /(\d{4,16})[^A-Za-z0-9\n]{0,40}(?:OTP|otp|code|کد|رمز|verification|verify|confirm(?:ation)?|пароль|код)/i,
     // After is/:/=/-
-    /(?:is|:|-|=)\s*(\d{6})\b/,
-    /(?:is|:|-|=)\s*(\d{4})\b/,
-    // Standalone 6-digit number (most reliable OTP length)
-    /(?<!\d)(\d{6})(?!\d)/,
+    /(?:is|:|-|=)\s*(\d{4,16})\b/,
+    // Standalone 6-12 digit number (covers OTP & long confirmation codes)
+    /(?<!\d)(\d{6,12})(?!\d)/,
     // Standalone 4-digit number
     /(?<!\d)(\d{4})(?!\d)/,
     // Start of message
-    /^(\d{6})\b/,
-    /^(\d{4})\b/,
+    /^(\d{4,16})\b/,
   ];
   for (const pattern of patterns) {
     const match = text.match(pattern);

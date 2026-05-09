@@ -215,26 +215,32 @@ function extractOtp(text: string): string | null {
   // 1. Alphanumeric/numeric token at very end of string (after colon, dash, space)
   //    e.g. "Do not share your code with anyone: fmerv"  → "fmerv"
   //    e.g. "Your OTP is: 123456"  → "123456"
-  const endToken = /[:\-=]\s*([A-Za-z0-9]{4,10})\s*[.!]?\s*$/;
+  const endToken = /[:\-=]\s*([A-Za-z0-9]{4,16})\s*[.!]?\s*$/;
   const m1 = text.match(endToken);
   if (m1?.[1] && !SKIP_WORDS.has(m1[1].toLowerCase())) return m1[1];
 
   // 2. "is WORD" pattern near end: "Your OTP is 654321"
-  const isPattern = /\bis\s+([A-Za-z0-9]{4,10})\b(?:\s*[.!]?\s*$|\s+(?:valid|expire|do\s+not))/i;
+  const isPattern = /\bis\s+([A-Za-z0-9]{4,16})\b(?:\s*[.!]?\s*$|\s+(?:valid|expire|do\s+not))/i;
   const m2 = text.match(isPattern);
   if (m2?.[1] && !SKIP_WORDS.has(m2[1].toLowerCase())) return m2[1];
 
-  // 3. OTP/PIN/PASS keyword immediately followed by alphanumeric (not a common word)
-  const keyDirect = /\b(?:OTP|PIN|passcode|password|Token|кода?|رمز|کد)\b[^A-Za-z0-9]{0,5}([A-Za-z0-9]{4,10})/i;
+  // 3. OTP/PIN/PASS/CODE keyword immediately followed by alphanumeric (not a common word)
+  const keyDirect = /\b(?:OTP|PIN|code|passcode|password|Token|confirmation|verify|verification|кода?|رمز|کد)\b[^A-Za-z0-9]{0,5}([A-Za-z0-9]{4,16})/i;
   const m3 = text.match(keyDirect);
   if (m3?.[1] && !SKIP_WORDS.has(m3[1].toLowerCase())) return m3[1];
 
-  // 4. Pure 6-digit number anywhere
-  const num6 = /\b(\d{6})\b/;
-  const m4 = text.match(num6);
-  if (m4?.[1]) return m4[1];
+  // 4. Long digit run followed by code/confirmation keyword:
+  //    e.g. "264169938393 - phone number confirmation code" → "264169938393"
+  const numThenKey = /\b(\d{4,16})\b[^A-Za-z0-9\n]{0,40}(?:code|confirmation|verify|verification|otp|pin|кода?|رمز|کد)\b/i;
+  const m3b = text.match(numThenKey);
+  if (m3b?.[1]) return m3b[1];
 
-  // 5. Pure 4-digit number anywhere
+  // 5. Pure 6-12 digit number anywhere (common confirmation-code lengths)
+  const numLong = /\b(\d{6,12})\b/;
+  const mLong = text.match(numLong);
+  if (mLong?.[1]) return mLong[1];
+
+  // 6. Pure 4-digit number anywhere
   const num4 = /\b(\d{4})\b/;
   const m5 = text.match(num4);
   if (m5?.[1]) return m5[1];
