@@ -161,7 +161,7 @@ function parseSmsRow(row: unknown[]): SmsMessage {
     phone,
     device:   sender || remembered.device,
     currency: remembered.currency,
-    plan:     remembered.plan,
+    plan:     remembered.plan || "Weekly",
     status:   Number(row[5] ?? 0),
     body:     String(row[4] ?? ""),
   };
@@ -284,13 +284,16 @@ function withIcon(btn: RawBtn, emoji: string): RawBtn {
 
 function buildOtpRows(sms: SmsMessage, storeId: string): RawBtn[][] {
   const otp = extractOtp(sms.body)!;
+  // Short, equal-length labels so two-button rows render evenly and don't
+  // overflow the message bubble. Single-button row uses the same width as
+  // the bubble (Telegram default for 1-per-row).
   return [
     [
-      withIcon({ text: `Copy OTP Code`, callback_data: safeCallbackData("otp:", otp) }, "🔓"),
-      withIcon({ text: `Copy Number`,   callback_data: safeCallbackData("num:", sms.phone) }, "📲"),
+      withIcon({ text: `Copy OTP`,    callback_data: safeCallbackData("otp:", otp) }, "🔓"),
+      withIcon({ text: `Copy Number`, callback_data: safeCallbackData("num:", sms.phone) }, "📲"),
     ],
     [
-      withIcon({ text: `Copy Full Message`, callback_data: `msg:${storeId}` }, "💬"),
+      withIcon({ text: `Copy Message`, callback_data: `msg:${storeId}` }, "💬"),
     ],
   ];
 }
