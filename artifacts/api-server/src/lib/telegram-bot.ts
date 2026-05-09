@@ -99,15 +99,35 @@ function storeMessage(sms: SmsMessage): string {
 
 // ─── SMS Parsing ─────────────────────────────────────────────────────────────
 function parseSmsRow(row: unknown[]): SmsMessage {
+  // Upstream API supports two formats:
+  //   New (6 cols): [timestamp, sim, phone, sender, body, status]
+  //   Old (8 cols): [timestamp, sim, phone, device, currency, plan, status, body]
+  // Detect by length so we stay compatible with either.
+  if (row.length !== 6 && row.length < 8) {
+    logger.warn({ length: row.length }, "Unknown SMS row shape — skipping");
+    return { timestamp: "", sim: "", phone: "", device: "", currency: "", plan: "", status: 0, body: "" };
+  }
+  if (row.length >= 8) {
+    return {
+      timestamp: String(row[0] ?? ""),
+      sim:       String(row[1] ?? ""),
+      phone:     String(row[2] ?? ""),
+      device:    String(row[3] ?? ""),
+      currency:  String(row[4] ?? "").replace(/&euro;/g, "€").replace(/&amp;/g, "&"),
+      plan:      String(row[5] ?? ""),
+      status:    Number(row[6] ?? 0),
+      body:      String(row[7] ?? ""),
+    };
+  }
   return {
     timestamp: String(row[0] ?? ""),
     sim:       String(row[1] ?? ""),
     phone:     String(row[2] ?? ""),
     device:    String(row[3] ?? ""),
-    currency:  String(row[4] ?? "").replace(/&euro;/g, "€").replace(/&amp;/g, "&"),
-    plan:      String(row[5] ?? ""),
-    status:    Number(row[6] ?? 0),
-    body:      String(row[7] ?? ""),
+    currency:  "",
+    plan:      "",
+    status:    Number(row[5] ?? 0),
+    body:      String(row[4] ?? ""),
   };
 }
 
@@ -186,8 +206,7 @@ function formatOtpMessage(sms: SmsMessage): string {
     `├ ${ce("📲")} <b>Phone:</b>   <code>${escapeHtml(sms.phone)}</code>\n` +
     `├ ${ce("🔔")} <b>Time:</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
     `├ ${ce("🃏")} <b>SIM:</b>     ${escapeHtml(sms.sim)}\n` +
-    `├ ${ce("💻")} <b>Device:</b>  ${escapeHtml(sms.device)}\n` +
-    `╰ ${ce("💵")} <b>Plan:</b>    ${escapeHtml(sms.plan)}\n\n` +
+    `╰ ${ce("💻")} <b>Sender:</b>  ${escapeHtml(sms.device)}\n\n` +
     `╭─ ${ce("💬")} <b>MESSAGE</b>\n` +
     `╰ <i>${escapeHtml(sms.body)}</i>\n\n` +
     `╭─ ${ce("🔓")} <b>OTP CODE</b>\n` +
@@ -204,8 +223,7 @@ function formatSmsMessage(sms: SmsMessage): string {
     `├ ${ce("📲")} <b>Phone:</b>   <code>${escapeHtml(sms.phone)}</code>\n` +
     `├ ${ce("🔔")} <b>Time:</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
     `├ ${ce("🃏")} <b>SIM:</b>     ${escapeHtml(sms.sim)}\n` +
-    `├ ${ce("💻")} <b>Device:</b>  ${escapeHtml(sms.device)}\n` +
-    `╰ ${ce("💵")} <b>Plan:</b>    ${escapeHtml(sms.plan)}\n\n` +
+    `╰ ${ce("💻")} <b>Sender:</b>  ${escapeHtml(sms.device)}\n\n` +
     `╭─ ${ce("💬")} <b>MESSAGE</b>\n` +
     `╰ <i>${escapeHtml(sms.body)}</i>`
   );
