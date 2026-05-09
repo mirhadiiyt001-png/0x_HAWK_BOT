@@ -1,6 +1,7 @@
 import TelegramBot from "node-telegram-bot-api";
 import { logger } from "./logger";
 import { fetchSmsCached as fetchSms, fetchNumbersCached as fetchNumbers } from "./upstream";
+import { rawSend } from "./raw_send";
 const POLL_INTERVAL   = 5000;
 const NUMS_POLL_INTERVAL = 15_000;
 const MAX_CALLBACK_DATA = 60;
@@ -77,11 +78,17 @@ async function loadCustomEmojiPacks(token: string): Promise<void> {
 // Wrap emoji in <tg-emoji> if a custom version is available, otherwise return plain emoji
 // Tries exact match, then with/without variation selector U+FE0F to handle encoding mismatches
 function ce(emoji: string): string {
-  const VS16 = "\uFE0F";
-  let id = customEmojiMap.get(emoji)
-    ?? customEmojiMap.get(emoji.replace(/\uFE0F/g, ""))      // strip VS16
-    ?? customEmojiMap.get(emoji.endsWith(VS16) ? emoji : emoji + VS16); // add VS16
+  const id = ceId(emoji);
   return id ? `<tg-emoji emoji-id="${id}">${emoji}</tg-emoji>` : emoji;
+}
+
+// Resolve the custom_emoji_id for a unicode emoji (for use as
+// `icon_custom_emoji_id` on inline buttons — premium emoji icons).
+function ceId(emoji: string): string | undefined {
+  const VS16 = "\uFE0F";
+  return customEmojiMap.get(emoji)
+    ?? customEmojiMap.get(emoji.replace(/\uFE0F/g, ""))
+    ?? customEmojiMap.get(emoji.endsWith(VS16) ? emoji : emoji + VS16);
 }
 
 function storeMessage(sms: SmsMessage): string {
@@ -204,30 +211,49 @@ function formatSmsMessage(sms: SmsMessage): string {
   );
 }
 
-function buildOtpKeyboard(sms: SmsMessage, storeId: string): TelegramBot.InlineKeyboardMarkup {
-  const otp = extractOtp(sms.body)!;
-  return {
-    inline_keyboard: [
-      [
-        { text: `🔓 Copy OTP Code`, callback_data: safeCallbackData("otp:", otp) },
-        { text: `📲 Copy Number`, callback_data: safeCallbackData("num:", sms.phone) },
-      ],
-      [
-        { text: `💬 Copy Full Message`, callback_data: `msg:${storeId}` },
-      ],
-    ],
-  };
+// Premium-styled rows for rawSend: each interactive button gets a rotating
+// `style` color (primary/success/danger) and a premium `icon_custom_emoji_id`
+// when one is available in the loaded emoji packs.
+type RawBtn = {
+  text: string;
+  callback_data?: string;
+  url?: string;
+  icon_custom_emoji_id?: string;
+};
+
+function withIcon(btn: RawBtn, emoji: string): RawBtn {
+  const id = ceId(emoji);
+  return id ? { ...btn, icon_custom_emoji_id: id } : btn;
 }
 
-function buildSmsKeyboard(sms: SmsMessage, storeId: string): TelegramBot.InlineKeyboardMarkup {
-  return {
-    inline_keyboard: [
-      [
-        { text: `📲 Copy Number`, callback_data: safeCallbackData("num:", sms.phone) },
-        { text: `💬 Copy Message`, callback_data: `msg:${storeId}` },
-      ],
+function buildOtpRows(sms: SmsMessage, storeId: string): RawBtn[][] {
+  const otp = extractOtp(sms.body)!;
+  return [
+    [
+      withIcon({ text: `Copy OTP Code`, callback_data: safeCallbackData("otp:", otp) }, "🔓"),
+      withIcon({ text: `Copy Number`, callback_data: safeCallbackData("num:", sms.phone) }, "📲"),
     ],
-  };
+    [
+      withIcon({ text: `Copy Full Message`, callback_data: `msg:${storeId}` }, "💬"),
+    ],
+  ];
+}
+
+function buildSmsRows(sms: SmsMessage, storeId: string): RawBtn[][] {
+  return [
+    [
+      withIcon({ text: `Copy Number`, callback_data: safeCallbackData("num:", sms.phone) }, "📲"),
+      withIcon({ text: `Copy Message`, callback_data: `msg:${storeId}` }, "💬"),
+    ],
+  ];
+}
+
+// Legacy SDK-shaped wrappers (kept so any non-rawSend callsite still works).
+function buildOtpKeyboard(sms: SmsMessage, storeId: string): TelegramBot.InlineKeyboardMarkup {
+  return { inline_keyboard: buildOtpRows(sms, storeId) as TelegramBot.InlineKeyboardButton[][] };
+}
+function buildSmsKeyboard(sms: SmsMessage, storeId: string): TelegramBot.InlineKeyboardMarkup {
+  return { inline_keyboard: buildSmsRows(sms, storeId) as TelegramBot.InlineKeyboardButton[][] };
 }
 
 function makeMessageKey(sms: SmsMessage): string {
@@ -362,14 +388,11 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
       `<i>This user wants access to Zone SMS Bot.</i>\n` +
       `<i>Approve or decline below.</i>`;
 
-    const keyboard: TelegramBot.InlineKeyboardMarkup = {
-      inline_keyboard: [[
-        { text: "✅ Approve", callback_data: `approve:${userId}` },
-        { text: "❌ Decline", callback_data: `decline:${userId}` },
-      ]],
-    };
-
-    await bot.sendMessage(ownerId, text, { parse_mode: "HTML", reply_markup: keyboard });
+    const approveRows: RawBtn[][] = [[
+      withIcon({ text: "Approve", callback_data: `approve:${userId}` }, "✅"),
+      withIcon({ text: "Decline", callback_data: `decline:${userId}` }, "❌"),
+    ]];
+    await rawSend({ token: token!, chatId: ownerId, text, rows: approveRows });
   }
 
   // ── Callback query handler ──
@@ -716,15 +739,15 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
         try {
           if (hasOtp && otp) {
             otpCount++;
-            await bot.sendMessage(chatId, formatOtpMessage(sms), {
-              parse_mode: "HTML",
-              reply_markup: buildOtpKeyboard(sms, storeId),
+            await rawSend({
+              token: token!, chatId, text: formatOtpMessage(sms),
+              rows: buildOtpRows(sms, storeId),
             });
             logger.info({ phone: sms.phone, otp }, "OTP SMS sent to Telegram");
           } else {
-            await bot.sendMessage(chatId, formatSmsMessage(sms), {
-              parse_mode: "HTML",
-              reply_markup: buildSmsKeyboard(sms, storeId),
+            await rawSend({
+              token: token!, chatId, text: formatSmsMessage(sms),
+              rows: buildSmsRows(sms, storeId),
             });
             logger.info({ phone: sms.phone }, "SMS sent to Telegram");
           }
