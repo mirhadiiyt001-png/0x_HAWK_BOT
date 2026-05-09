@@ -98,6 +98,29 @@ function storeMessage(sms: SmsMessage): string {
 }
 
 // ─── SMS Parsing ─────────────────────────────────────────────────────────────
+// Per-phone (and per-SIM) metadata cache. When the new 6-col API drops
+// device/currency/plan, we fall back to the last known values for that phone
+// (or, failing that, for that SIM). Updated whenever the old 8-col format
+// supplies them.
+type SmsMeta = { device: string; currency: string; plan: string };
+const phoneMetaCache = new Map<string, SmsMeta>();
+const simMetaCache   = new Map<string, SmsMeta>();
+
+function rememberMeta(phone: string, sim: string, meta: SmsMeta): void {
+  if (meta.device || meta.currency || meta.plan) {
+    if (phone) phoneMetaCache.set(phone, meta);
+    if (sim)   simMetaCache.set(sim, meta);
+  }
+}
+
+function recallMeta(phone: string, sim: string): SmsMeta {
+  return (
+    phoneMetaCache.get(phone) ??
+    simMetaCache.get(sim) ??
+    { device: "", currency: "", plan: "" }
+  );
+}
+
 function parseSmsRow(row: unknown[]): SmsMessage {
   // Upstream API supports two formats:
   //   New (6 cols): [timestamp, sim, phone, sender, body, status]
@@ -107,8 +130,9 @@ function parseSmsRow(row: unknown[]): SmsMessage {
     logger.warn({ length: row.length }, "Unknown SMS row shape — skipping");
     return { timestamp: "", sim: "", phone: "", device: "", currency: "", plan: "", status: 0, body: "" };
   }
+
   if (row.length >= 8) {
-    return {
+    const sms: SmsMessage = {
       timestamp: String(row[0] ?? ""),
       sim:       String(row[1] ?? ""),
       phone:     String(row[2] ?? ""),
@@ -118,16 +142,28 @@ function parseSmsRow(row: unknown[]): SmsMessage {
       status:    Number(row[6] ?? 0),
       body:      String(row[7] ?? ""),
     };
+    // Old format carries device/currency/plan — remember them for this phone/SIM
+    rememberMeta(sms.phone, sms.sim, {
+      device: sms.device, currency: sms.currency, plan: sms.plan,
+    });
+    return sms;
   }
+
+  // New 6-col format: device may be present (sender), currency/plan are not.
+  // Fill any missing fields from the per-phone / per-SIM cache.
+  const phone = String(row[2] ?? "");
+  const sim   = String(row[1] ?? "");
+  const sender = String(row[3] ?? "");
+  const remembered = recallMeta(phone, sim);
   return {
     timestamp: String(row[0] ?? ""),
-    sim:       String(row[1] ?? ""),
-    phone:     String(row[2] ?? ""),
-    device:    String(row[3] ?? ""),
-    currency:  "",
-    plan:      "",
-    status:    Number(row[5] ?? 0),
-    body:      String(row[4] ?? ""),
+    sim,
+    phone,
+    device:   sender || remembered.device,
+    currency: remembered.currency,
+    plan:     remembered.plan,
+    status:   Number(row[5] ?? 0),
+    body:     String(row[4] ?? ""),
   };
 }
 
@@ -206,7 +242,8 @@ function formatOtpMessage(sms: SmsMessage): string {
     `├ ${ce("📲")} <b>Phone:</b>   <code>${escapeHtml(sms.phone)}</code>\n` +
     `├ ${ce("🔔")} <b>Time:</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
     `├ ${ce("🃏")} <b>SIM:</b>     ${escapeHtml(sms.sim)}\n` +
-    `╰ ${ce("💻")} <b>Sender:</b>  ${escapeHtml(sms.device)}\n\n` +
+    `├ ${ce("💻")} <b>Device:</b>  ${escapeHtml(sms.device)}\n` +
+    `╰ ${ce("💵")} <b>Plan:</b>    ${escapeHtml(sms.plan)}\n\n` +
     `╭─ ${ce("💬")} <b>MESSAGE</b>\n` +
     `╰ <i>${escapeHtml(sms.body)}</i>\n\n` +
     `╭─ ${ce("🔓")} <b>OTP CODE</b>\n` +
@@ -223,7 +260,8 @@ function formatSmsMessage(sms: SmsMessage): string {
     `├ ${ce("📲")} <b>Phone:</b>   <code>${escapeHtml(sms.phone)}</code>\n` +
     `├ ${ce("🔔")} <b>Time:</b>    ${escapeHtml(formatTime(sms.timestamp))}\n` +
     `├ ${ce("🃏")} <b>SIM:</b>     ${escapeHtml(sms.sim)}\n` +
-    `╰ ${ce("💻")} <b>Sender:</b>  ${escapeHtml(sms.device)}\n\n` +
+    `├ ${ce("💻")} <b>Device:</b>  ${escapeHtml(sms.device)}\n` +
+    `╰ ${ce("💵")} <b>Plan:</b>    ${escapeHtml(sms.plan)}\n\n` +
     `╭─ ${ce("💬")} <b>MESSAGE</b>\n` +
     `╰ <i>${escapeHtml(sms.body)}</i>`
   );
