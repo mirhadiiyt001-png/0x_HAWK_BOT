@@ -558,14 +558,29 @@ export default function App() {
       const aaData: unknown[][] = j.data?.aaData ?? [];
       const parsed: SmsRow[] = [];
       for (const row of aaData) {
-        if (!Array.isArray(row) || row.length < 7) continue;
-        const phone = String(row[2]); const body = String(row[7] || "");
-        if (phone === "0" || phone === "" || body === "0" || body === "") continue;
-        // isOtp: API flag at index 6 OR our own pattern detection
-        const apiOtpFlag = Number(row[6]) === 1;
+        // Railway aaData shape: [timestamp, sim/group, phone, sender(cli), body, flag?]
+        // Some panels also include extra columns (device, plan) — handle both.
+        if (!Array.isArray(row) || row.length < 5) continue;
+        const phone = String(row[2] ?? "");
+        // Body is column 4 in the Railway-proxy shape; if a longer row exists,
+        // prefer column 7 (legacy panel shape) when it looks like a real message.
+        const bodyCandidates = [row[4], row[7], row[5]];
+        const body = String(bodyCandidates.find(b => typeof b === "string" && b.trim() !== "" && b !== "0") ?? "");
+        if (phone === "0" || phone === "" || body === "" || body === "0") continue;
+        const apiOtpFlag = Number(row[6] ?? row[5]) === 1;
         const isOtp = apiOtpFlag || extractOtp(body) !== null;
-        parsed.push({ timestamp: String(row[0]), sim: String(row[1]), phone, device: String(row[3]), plan: String(row[5] || row[4] || ""), body, isOtp });
+        parsed.push({
+          timestamp: String(row[0] ?? ""),
+          sim:       String(row[1] ?? ""),
+          phone,
+          device:    String(row[3] ?? ""),
+          plan:      String(row.length > 5 ? (row[5] ?? "") : ""),
+          body,
+          isOtp,
+        });
       }
+      // API returns oldest-first; show newest at top.
+      parsed.sort((a, b) => (a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0));
       setRows(parsed); setTotalSms(parseInt(String(j.data?.iTotalRecords || parsed.length)));
       setLastFetch(j.fetchedAt || new Date().toISOString()); setOnline(true);
       if (parsed.length > prevLen.current && prevLen.current > 0) {
@@ -576,7 +591,8 @@ export default function App() {
     finally { setSmsLoading(false); }
   }, []);
 
-  useEffect(() => { fetchSms(); const id = setInterval(fetchSms, 5000); return () => clearInterval(id); }, [fetchSms]);
+  // Poll every 1.5s — server-side cache (1s) prevents upstream hammering.
+  useEffect(() => { fetchSms(); const id = setInterval(fetchSms, 1500); return () => clearInterval(id); }, [fetchSms]);
 
   const fetchNums = useCallback(async () => {
     try {
@@ -601,7 +617,7 @@ export default function App() {
     } catch {} finally { setNumLoading(false); }
   }, []);
 
-  useEffect(() => { fetchNums(); }, [fetchNums]);
+  useEffect(() => { fetchNums(); const id = setInterval(fetchNums, 3000); return () => clearInterval(id); }, [fetchNums]);
 
   const onStatus = useCallback((phone: string, status: Status) => {
     setNums(prev => prev.map(n => n.phone === phone ? { ...n, status } : n));

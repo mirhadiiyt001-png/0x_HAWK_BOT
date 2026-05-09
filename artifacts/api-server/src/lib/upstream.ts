@@ -97,7 +97,7 @@ export function logUpstreamConfig(): void {
 }
 
 // ─── Cached wrappers — coalesce concurrent calls + serve stale on slow upstream ───
-const CACHE_TTL_MS  = 4000;   // serve fresh within 4s
+const CACHE_TTL_MS  = 1000;   // serve fresh within 1s — fast updates for live dashboard
 const STALE_TTL_MS  = 60000;  // serve stale up to 60s on upstream failure
 
 interface CacheEntry { at: number; data: UpstreamEnvelope; }
