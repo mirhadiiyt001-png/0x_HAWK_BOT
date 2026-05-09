@@ -1,52 +1,32 @@
-// Direct upstream client for the SMS panel — replaces external Railway proxy.
-// Hits the panel directly with proper headers + PHPSESSID cookie.
+// Upstream client — fetches via the Railway proxy.
+// Endpoints:
+//   GET https://hadibhai-production.up.railway.app/api/zone?type=sms
+//   GET https://hadibhai-production.up.railway.app/api/zone?type=numbers
 
-import http from "http";
-import https from "https";
-import zlib from "zlib";
 import { logger } from "./logger";
 
-const TARGET_BASE_URL = process.env.TARGET_BASE_URL || "http://51.68.39.124";
-const DEFAULT_PHPSESSID = process.env.PHPSESSID || "qeekdt0k1pe457tlkd5pg9d6e6";
-const USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36";
+const RAILWAY_BASE_URL =
+  process.env.RAILWAY_BASE_URL ||
+  "https://hadibhai-production.up.railway.app";
 
-function fetchWithDecompression(url: string, headers: Record<string, string>, timeoutMs = 25000): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const lib = url.startsWith("https") ? https : http;
-    const req = lib.get(url, { headers }, (response) => {
-      const chunks: Buffer[] = [];
-      response.on("data", (c: Buffer) => chunks.push(c));
-      response.on("end", () => {
-        const buf = Buffer.concat(chunks);
-        const enc = response.headers["content-encoding"];
-        if (enc === "gzip") {
-          zlib.gunzip(buf, (err, out) => err ? reject(err) : resolve(out.toString()));
-        } else if (enc === "deflate") {
-          zlib.inflate(buf, (err, out) => err ? reject(err) : resolve(out.toString()));
-        } else {
-          resolve(buf.toString());
-        }
-      });
+const FETCH_TIMEOUT_MS = 25000;
+
+async function getJson(url: string): Promise<unknown> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      headers: { "Accept": "application/json" },
+      signal: ctrl.signal,
     });
-    req.on("error", reject);
-    req.setTimeout(timeoutMs, () => { req.destroy(); reject(new Error("Request timeout")); });
-  });
-}
-
-function baseHeaders(referer: string, session: string): Record<string, string> {
-  return {
-    "User-Agent": USER_AGENT,
-    "Accept": "application/json, text/javascript, */*; q=0.01",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate",
-    "Connection": "keep-alive",
-    "Cache-Control": "no-cache",
-    "Pragma": "no-cache",
-    "X-Requested-With": "XMLHttpRequest",
-    "Cookie": `PHPSESSID=${session}`,
-    "Referer": referer,
-  };
+    if (!res.ok) {
+      throw new Error(`Upstream ${url} returned HTTP ${res.status}`);
+    }
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export interface UpstreamEnvelope {
@@ -67,83 +47,53 @@ export interface UpstreamEnvelope {
   fetchedAt: string;
 }
 
-export async function fetchSms(opts: { date1?: string; date2?: string; session?: string } = {}): Promise<UpstreamEnvelope> {
-  const start = Date.now();
-  const today = new Date().toISOString().slice(0, 10);
-  const date1 = opts.date1 || today;
-  const date2 = opts.date2 || date1;
-  const session = opts.session || DEFAULT_PHPSESSID;
-  const ts = Date.now();
-
-  const url =
-    `${TARGET_BASE_URL}/sms/subclient/ajax/dt_reports.php` +
-    `?fdate1=${date1}%2000:00:00&fdate2=${date2}%2023:59:59` +
-    `&ftermination=&fnum=&fcli=&fgdate=0&fgtermination=0&fgnumber=0&fgcli=0&fg=0` +
-    `&sEcho=1&iColumns=8&sColumns=%2C%2C%2C%2C%2C%2C%2C` +
-    `&iDisplayStart=0&iDisplayLength=-1` +
-    `&mDataProp_0=0&sSearch_0=&bRegex_0=false&bSearchable_0=true&bSortable_0=true` +
-    `&mDataProp_1=1&sSearch_1=&bRegex_1=false&bSearchable_1=true&bSortable_1=true` +
-    `&mDataProp_2=2&sSearch_2=&bRegex_2=false&bSearchable_2=true&bSortable_2=true` +
-    `&mDataProp_3=3&sSearch_3=&bRegex_3=false&bSearchable_3=true&bSortable_3=true` +
-    `&mDataProp_4=4&sSearch_4=&bRegex_4=false&bSearchable_4=true&bSortable_4=true` +
-    `&mDataProp_5=5&sSearch_5=&bRegex_5=false&bSearchable_5=true&bSortable_5=true` +
-    `&mDataProp_6=6&sSearch_6=&bRegex_6=false&bSearchable_6=true&bSortable_6=true` +
-    `&mDataProp_7=7&sSearch_7=&bRegex_7=false&bSearchable_7=true&bSortable_7=true` +
-    `&sSearch=&bRegex=false&iSortCol_0=0&sSortDir_0=desc&iSortingCols=1&_=${ts}`;
-
-  const headers = baseHeaders(`${TARGET_BASE_URL}/sms/subclient/Reports`, session);
-  const raw = await fetchWithDecompression(url, headers);
-  let data: UpstreamEnvelope["data"];
-  try { data = JSON.parse(raw); } catch { data = { error: "JSON parse failed", raw: raw.slice(0, 400) } as never; }
+function wrapEnvelope(
+  type: "sms" | "numbers",
+  raw: unknown,
+  startedAt: number,
+  fromDate: string,
+  toDate: string,
+): UpstreamEnvelope {
+  // Railway proxy returns the DataTables payload directly:
+  //   { sEcho, iTotalRecords, iTotalDisplayRecords, aaData: [...] }
+  // Some deployments may already wrap it in `{ data: {...} }` — handle both.
+  const obj = (raw && typeof raw === "object") ? (raw as Record<string, unknown>) : {};
+  const inner =
+    "aaData" in obj
+      ? (obj as UpstreamEnvelope["data"])
+      : ((obj["data"] as UpstreamEnvelope["data"] | undefined) ?? { aaData: [] });
 
   return {
     success: true,
-    name: "0x_HAWK ZONE SMS API",
-    version: "2.0-local",
-    type: "sms",
-    fromDate: date1,
-    toDate: date2,
-    data,
-    responseTimeMs: Date.now() - start,
+    name: "Zone SMS Railway Proxy",
+    version: "1.0",
+    type,
+    fromDate,
+    toDate,
+    data: inner,
+    responseTimeMs: Date.now() - startedAt,
     fetchedAt: new Date().toISOString(),
   };
 }
 
-export async function fetchNumbers(opts: { session?: string } = {}): Promise<UpstreamEnvelope> {
+export async function fetchSms(_opts: { date1?: string; date2?: string; session?: string } = {}): Promise<UpstreamEnvelope> {
   const start = Date.now();
   const today = new Date().toISOString().slice(0, 10);
-  const session = opts.session || DEFAULT_PHPSESSID;
-  const ts = Date.now();
+  const url = `${RAILWAY_BASE_URL}/api/zone?type=sms`;
+  const raw = await getJson(url);
+  return wrapEnvelope("sms", raw, start, today, today);
+}
 
-  const url =
-    `${TARGET_BASE_URL}/sms/subclient/ajax/dt_numbers.php` +
-    `?ftermination=&sEcho=1&iColumns=3&sColumns=%2C%2C` +
-    `&iDisplayStart=0&iDisplayLength=-1` +
-    `&mDataProp_0=0&sSearch_0=&bRegex_0=false&bSearchable_0=true&bSortable_0=true` +
-    `&mDataProp_1=1&sSearch_1=&bRegex_1=false&bSearchable_1=true&bSortable_1=true` +
-    `&mDataProp_2=2&sSearch_2=&bRegex_2=false&bSearchable_2=true&bSortable_2=true` +
-    `&sSearch=&bRegex=false&iSortCol_0=0&sSortDir_0=asc&iSortingCols=1&_=${ts}`;
-
-  const headers = baseHeaders(`${TARGET_BASE_URL}/sms/subclient/AssignedNumbers`, session);
-  const raw = await fetchWithDecompression(url, headers);
-  let data: UpstreamEnvelope["data"];
-  try { data = JSON.parse(raw); } catch { data = { error: "JSON parse failed", raw: raw.slice(0, 400) } as never; }
-
-  return {
-    success: true,
-    name: "0x_HAWK ZONE SMS API",
-    version: "2.0-local",
-    type: "numbers",
-    fromDate: today,
-    toDate: today,
-    data,
-    responseTimeMs: Date.now() - start,
-    fetchedAt: new Date().toISOString(),
-  };
+export async function fetchNumbers(_opts: { session?: string } = {}): Promise<UpstreamEnvelope> {
+  const start = Date.now();
+  const today = new Date().toISOString().slice(0, 10);
+  const url = `${RAILWAY_BASE_URL}/api/zone?type=numbers`;
+  const raw = await getJson(url);
+  return wrapEnvelope("numbers", raw, start, today, today);
 }
 
 export function logUpstreamConfig(): void {
-  logger.info({ target: TARGET_BASE_URL, hasSession: !!process.env.PHPSESSID }, "Upstream client configured");
+  logger.info({ target: RAILWAY_BASE_URL }, "Upstream (Railway) client configured");
 }
 
 // ─── Cached wrappers — coalesce concurrent calls + serve stale on slow upstream ───
