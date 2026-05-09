@@ -388,11 +388,13 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
       `<i>This user wants access to Zone SMS Bot.</i>\n` +
       `<i>Approve or decline below.</i>`;
 
-    const approveRows: RawBtn[][] = [[
-      withIcon({ text: "Approve", callback_data: `approve:${userId}` }, "✅"),
-      withIcon({ text: "Decline", callback_data: `decline:${userId}` }, "❌"),
-    ]];
-    await rawSend({ token: token!, chatId: ownerId, text, rows: approveRows });
+    const approveKb: TelegramBot.InlineKeyboardMarkup = {
+      inline_keyboard: [[
+        withIcon({ text: "Approve", callback_data: `approve:${userId}` }, "✅") as TelegramBot.InlineKeyboardButton,
+        withIcon({ text: "Decline", callback_data: `decline:${userId}` }, "❌") as TelegramBot.InlineKeyboardButton,
+      ]],
+    };
+    await bot.sendMessage(ownerId, text, { parse_mode: "HTML", reply_markup: approveKb });
   }
 
   // ── Callback query handler ──
@@ -739,15 +741,15 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
         try {
           if (hasOtp && otp) {
             otpCount++;
-            await rawSend({
-              token: token!, chatId, text: formatOtpMessage(sms),
-              rows: buildOtpRows(sms, storeId),
+            await bot.sendMessage(chatId, formatOtpMessage(sms), {
+              parse_mode: "HTML",
+              reply_markup: buildOtpKeyboard(sms, storeId),
             });
             logger.info({ phone: sms.phone, otp }, "OTP SMS sent to Telegram");
           } else {
-            await rawSend({
-              token: token!, chatId, text: formatSmsMessage(sms),
-              rows: buildSmsRows(sms, storeId),
+            await bot.sendMessage(chatId, formatSmsMessage(sms), {
+              parse_mode: "HTML",
+              reply_markup: buildSmsKeyboard(sms, storeId),
             });
             logger.info({ phone: sms.phone }, "SMS sent to Telegram");
           }
