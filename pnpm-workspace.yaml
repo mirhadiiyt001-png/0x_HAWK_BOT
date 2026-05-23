@@ -25,7 +25,3 @@ catalog:
   zod: ^3.25.76
 
 autoInstallPeers: false
-
-# Pin esbuild to the exact version used by vite to avoid binary mismatch on Windows
-overrides:
-  esbuild: "0.27.3"
