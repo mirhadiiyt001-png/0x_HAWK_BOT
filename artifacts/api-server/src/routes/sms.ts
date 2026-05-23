@@ -1,51 +1,36 @@
 import { Router, type IRouter } from "express";
-import { fetchSmsCached as fetchSms } from "../lib/upstream";
+import { fetchSmsCached } from "../lib/upstream";
 
 const router: IRouter = Router();
 
 router.get("/sms-stats", async (_req, res) => {
   try {
-    const parsed = await fetchSms();
-    const data = parsed.data as {
-      iTotalRecords: string;
-      iTotalDisplayRecords: string;
-      aaData: unknown[][];
-    };
-
-    const allRows = data.aaData ?? [];
-
-    // Filter out garbage/summary rows (phone must be a real number)
-    const rows = allRows.filter((row) => {
-      const arr = row as unknown[];
-      const phone = String(arr[2] ?? "").trim();
-      const body  = String(arr[7] ?? "").trim();
-      return phone !== "0" && phone !== "" && body !== "0" && body !== "" && /\d{4,}/.test(phone);
-    });
+    const data = await fetchSmsCached();
+    const records = data.records ?? [];
 
     // Count OTPs
     const otpKeywords = ["otp", "verification code", "verify", "code", "رمز", "کد", "pin", "auth", "passcode", "пароль", "код", "senha", "doğrulama"];
     let otpCount = 0;
-    const recent = rows.slice(0, 10).map((row) => {
-      const arr = row as unknown[];
-      const body = String(arr[7] ?? "");
+    const recent = records.slice(0, 10).map((rec) => {
+      const body = rec.message || "";
       const hasKeyword = otpKeywords.some((kw) => body.toLowerCase().includes(kw));
       const has6digit = /(?<!\d)\d{6}(?!\d)/.test(body);
       const isOtp = hasKeyword || has6digit;
       if (isOtp) otpCount++;
       return {
-        timestamp: String(arr[0] ?? ""),
-        sim: String(arr[1] ?? ""),
-        phone: String(arr[2] ?? ""),
-        device: String(arr[3] ?? ""),
-        plan: String(arr[5] ?? ""),
+        timestamp: rec.date,
+        sim: rec.termination,
+        phone: rec.number,
+        device: rec.cli,
+        plan: rec.payterm,
         body,
         isOtp,
       };
     });
 
     res.json({
-      totalRecords: data.iTotalRecords,
-      totalDisplayed: data.iTotalDisplayRecords,
+      totalRecords: String(data.total),
+      totalDisplayed: String(records.length),
       otpCount,
       recent,
       lastUpdated: new Date().toISOString(),

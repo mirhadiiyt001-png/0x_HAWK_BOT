@@ -1,6 +1,6 @@
 import TelegramBot from "node-telegram-bot-api";
 import { logger } from "./logger";
-import { fetchSmsCached as fetchSms, fetchNumbersCached as fetchNumbers } from "./upstream";
+import { fetchSmsCached as fetchSms, fetchNumbersCached as fetchNumbers, type UpstreamSmsResponse, type UpstreamNumbersResponse, type SmsRecord } from "./upstream";
 import { rawSend } from "./raw_send";
 const POLL_INTERVAL   = 5000;
 const NUMS_POLL_INTERVAL = 15_000;
@@ -15,16 +15,6 @@ interface SmsMessage {
   plan: string;
   status: number;
   body: string;
-}
-
-interface ApiResponse {
-  success: boolean;
-  data: {
-    iTotalRecords: string;
-    iTotalDisplayRecords: string;
-    aaData: unknown[][];
-    sEcho: number;
-  };
 }
 
 // ─── In-memory stores ───────────────────────────────────────────────────────
@@ -98,72 +88,17 @@ function storeMessage(sms: SmsMessage): string {
 }
 
 // ─── SMS Parsing ─────────────────────────────────────────────────────────────
-// Per-phone (and per-SIM) metadata cache. When the new 6-col API drops
-// device/currency/plan, we fall back to the last known values for that phone
-// (or, failing that, for that SIM). Updated whenever the old 8-col format
-// supplies them.
-type SmsMeta = { device: string; currency: string; plan: string };
-const phoneMetaCache = new Map<string, SmsMeta>();
-const simMetaCache   = new Map<string, SmsMeta>();
-
-function rememberMeta(phone: string, sim: string, meta: SmsMeta): void {
-  if (meta.device || meta.currency || meta.plan) {
-    if (phone) phoneMetaCache.set(phone, meta);
-    if (sim)   simMetaCache.set(sim, meta);
-  }
-}
-
-function recallMeta(phone: string, sim: string): SmsMeta {
-  return (
-    phoneMetaCache.get(phone) ??
-    simMetaCache.get(sim) ??
-    { device: "", currency: "", plan: "" }
-  );
-}
-
-function parseSmsRow(row: unknown[]): SmsMessage {
-  // Upstream API supports two formats:
-  //   New (6 cols): [timestamp, sim, phone, sender, body, status]
-  //   Old (8 cols): [timestamp, sim, phone, device, currency, plan, status, body]
-  // Detect by length so we stay compatible with either.
-  if (row.length !== 6 && row.length < 8) {
-    logger.warn({ length: row.length }, "Unknown SMS row shape — skipping");
-    return { timestamp: "", sim: "", phone: "", device: "", currency: "", plan: "", status: 0, body: "" };
-  }
-
-  if (row.length >= 8) {
-    const sms: SmsMessage = {
-      timestamp: String(row[0] ?? ""),
-      sim:       String(row[1] ?? ""),
-      phone:     String(row[2] ?? ""),
-      device:    String(row[3] ?? ""),
-      currency:  String(row[4] ?? "").replace(/&euro;/g, "€").replace(/&amp;/g, "&"),
-      plan:      String(row[5] ?? ""),
-      status:    Number(row[6] ?? 0),
-      body:      String(row[7] ?? ""),
-    };
-    // Old format carries device/currency/plan — remember them for this phone/SIM
-    rememberMeta(sms.phone, sms.sim, {
-      device: sms.device, currency: sms.currency, plan: sms.plan,
-    });
-    return sms;
-  }
-
-  // New 6-col format: device may be present (sender), currency/plan are not.
-  // Fill any missing fields from the per-phone / per-SIM cache.
-  const phone = String(row[2] ?? "");
-  const sim   = String(row[1] ?? "");
-  const sender = String(row[3] ?? "");
-  const remembered = recallMeta(phone, sim);
+// Parse a record object from the new 0xhawk API into our internal SmsMessage format.
+function parseSmsRecord(rec: SmsRecord): SmsMessage {
   return {
-    timestamp: String(row[0] ?? ""),
-    sim,
-    phone,
-    device:   sender || remembered.device,
-    currency: remembered.currency,
-    plan:     remembered.plan || "Weekly",
-    status:   Number(row[5] ?? 0),
-    body:     String(row[4] ?? ""),
+    timestamp: rec.date || "",
+    sim:       rec.termination || "",
+    phone:     rec.number || "",
+    device:    rec.cli || "",
+    currency:  (rec.currency || "").replace(/&euro;/g, "€").replace(/&amp;/g, "&"),
+    plan:      rec.payterm || "Weekly",
+    status:    0,
+    body:      rec.message || "",
   };
 }
 
@@ -347,13 +282,13 @@ function isValidSms(sms: SmsMessage): boolean {
   return true;
 }
 
-function buildStatsMessage(total: string, displayed: string, otps: number, sessionSms: number): string {
+function buildStatsMessage(total: number, displayed: number, otps: number, sessionSms: number): string {
   return (
     `${ce("🏆")} <b>LIVE STATISTICS</b> ${ce("🏆")}\n` +
     `——————————————————————\n\n` +
     `╭─ ${ce("⚡️")} <b>DATA</b>\n` +
-    `├ ${ce("💌")} Total SMS        →  <b>${escapeHtml(total)}</b>\n` +
-    `├ ${ce("📊")} Displayed        →  <b>${escapeHtml(displayed)}</b>\n` +
+    `├ ${ce("💌")} Total SMS        →  <b>${total}</b>\n` +
+    `├ ${ce("📊")} Displayed        →  <b>${displayed}</b>\n` +
     `├ ${ce("🎁")} OTPs detected    →  <b>${otps}</b>\n` +
     `╰ ${ce("✨")} New this session →  <b>${sessionSms}</b>\n\n` +
     `╭─ ${ce("💎")} <b>SYSTEM</b>\n` +
@@ -390,7 +325,7 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
   } else {
     // ── DEVELOPMENT: polling mode (delete any stale webhook first) ──
     bot = new TelegramBot(token, { polling: false });
-    bot.deleteWebHook({ drop_pending_updates: true })
+    bot.deleteWebHook()
       .then(() => {
         bot.startPolling();
         logger.info("Polling started (dev mode)");
@@ -570,8 +505,8 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
 
       } else if (data === "refresh_stats") {
         await bot.answerCallbackQuery(query.id, { text: "⚡️ Refreshing...", show_alert: false });
-        const d = (await fetchSms()) as unknown as ApiResponse;
-        const statsText = buildStatsMessage(d.data.iTotalRecords, d.data.iTotalDisplayRecords, otpCount, totalSmsToday);
+        const d = await fetchSms();
+        const statsText = buildStatsMessage(d.total, d.records.length, otpCount, totalSmsToday);
         const keyboard: TelegramBot.InlineKeyboardMarkup = {
           inline_keyboard: [[{ text: "🔄 Refresh", callback_data: "refresh_stats" }]],
         };
@@ -650,8 +585,8 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
   bot.onText(/\/stats/, async (msg) => {
     if (!isAllowed(msg.from!.id)) return;
     try {
-      const data = (await fetchSms()) as unknown as ApiResponse;
-      const text = buildStatsMessage(data.data.iTotalRecords, data.data.iTotalDisplayRecords, otpCount, totalSmsToday);
+      const data = await fetchSms();
+      const text = buildStatsMessage(data.total, data.records.length, otpCount, totalSmsToday);
       const keyboard: TelegramBot.InlineKeyboardMarkup = {
         inline_keyboard: [[{ text: "🔄 Refresh", callback_data: "refresh_stats" }]],
       };
@@ -736,30 +671,26 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
     if (pollInProgress) return;
     pollInProgress = true;
     try {
-      const data = (await fetchSms()) as unknown as ApiResponse;
-      const rows = data.data?.aaData ?? [];
+      const data = await fetchSms();
+      const records = data.records ?? [];
 
       if (isFirstRun) {
-        // Record the newest timestamp from current API state.
-        // Only messages arriving AFTER this point will be forwarded — restart-safe.
-        for (const row of rows) {
-          const sms = parseSmsRow(row);
+        for (const rec of records) {
+          const sms = parseSmsRecord(rec);
           if (!isValidSms(sms)) continue;
           if (sms.timestamp > latestSeenTimestamp) latestSeenTimestamp = sms.timestamp;
           seenKeys.add(makeMessageKey(sms));
         }
         isFirstRun = false;
-        logger.info({ latestSeenTimestamp, count: rows.length }, "SMS cache initialized");
+        logger.info({ latestSeenTimestamp, count: records.length }, "SMS cache initialized");
         return;
       }
 
       const newMessages: SmsMessage[] = [];
-      for (const row of rows) {
-        const sms = parseSmsRow(row);
+      for (const rec of records) {
+        const sms = parseSmsRecord(rec);
         if (!isValidSms(sms)) continue;
-        // Primary guard: skip anything not strictly newer than startup baseline
         if (sms.timestamp <= latestSeenTimestamp) continue;
-        // Secondary guard: exact-key dedup (handles same-second messages)
         const key = makeMessageKey(sms);
         if (seenKeys.has(key)) continue;
         seenKeys.add(key);
@@ -853,13 +784,13 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
 
   const pollNumbers = async () => {
     try {
-      const data = (await fetchNumbers()) as unknown as ApiResponse;
-      const rows = data.data?.aaData ?? [];
+      const data = await fetchNumbers();
+      const records = data.records ?? [];
 
       if (isFirstNumRun) {
-        for (const row of rows) {
-          if (!Array.isArray(row) || row.length < 2) continue;
-          const phone = String(row[1]); const range = String(row[0]);
+        for (const rec of records) {
+          const phone = rec.termination || "";
+          const range = rec.number || "";
           if (phone && phone !== "0") seenNumPhones.add(phone);
           if (range && range !== "0") seenRanges.add(range);
         }
@@ -875,9 +806,9 @@ export function startTelegramBot(webhookUrl?: string): TelegramBot | null {
       const newRangeMap = new Map<string, string[]>();
       const newPhonesByRange = new Map<string, string[]>();
 
-      for (const row of rows) {
-        if (!Array.isArray(row) || row.length < 2) continue;
-        const range = String(row[0]); const phone = String(row[1]);
+      for (const rec of records) {
+        const range = rec.number || "";
+        const phone = rec.termination || "";
         if (!phone || phone === "0") continue;
 
         const isNewPhone = !seenNumPhones.has(phone);

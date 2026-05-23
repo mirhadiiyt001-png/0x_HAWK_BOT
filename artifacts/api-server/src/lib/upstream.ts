@@ -1,15 +1,15 @@
-// Upstream client — fetches via the Railway proxy.
+// Upstream client — fetches from the 0xhawk API directly.
 // Endpoints:
-//   GET https://hadibhai-production.up.railway.app/api/zone?type=sms
-//   GET https://hadibhai-production.up.railway.app/api/zone?type=numbers
+//   GET https://0xhawk-api.up.railway.app/?type=sms
+//   GET https://0xhawk-api.up.railway.app/?type=numbers
 
 import { logger } from "./logger";
 
-const RAILWAY_BASE_URL =
-  process.env.RAILWAY_BASE_URL ||
-  "https://hadibhai-production.up.railway.app";
+const API_BASE_URL =
+  process.env.UPSTREAM_API_URL ||
+  "https://0xhawk-api.up.railway.app";
 
-const FETCH_TIMEOUT_MS = 25000;
+const FETCH_TIMEOUT_MS = 30000;
 
 async function getJson(url: string): Promise<unknown> {
   const ctrl = new AbortController();
@@ -29,93 +29,83 @@ async function getJson(url: string): Promise<unknown> {
   }
 }
 
-export interface UpstreamEnvelope {
+// ─── New API response types ──────────────────────────────────────────────────
+
+export interface SmsRecord {
+  date: string;
+  termination: string;
+  number: string;
+  cli: string;
+  currency: string;
+  payterm: string;
+  message: string;
+}
+
+export interface NumberRecord {
+  number: string;       // e.g. "77 KAZAKHSTAN D1 18 APR" (the range/SIM name)
+  termination: string;  // e.g. "77716949723" (the actual phone number)
+  status: string;
+}
+
+export interface UpstreamSmsResponse {
   success: boolean;
-  name: string;
+  api: string;
   version: string;
-  type: "sms" | "numbers";
-  fromDate: string;
-  toDate: string;
-  data: {
-    sEcho?: number;
-    iTotalRecords?: string;
-    iTotalDisplayRecords?: string;
-    aaData?: unknown[][];
-    [k: string]: unknown;
-  };
-  responseTimeMs: number;
+  type: "sms";
+  total: number;
+  ms: number;
   fetchedAt: string;
+  records: SmsRecord[];
+  dateRange?: { from: string; to: string };
 }
 
-function wrapEnvelope(
-  type: "sms" | "numbers",
-  raw: unknown,
-  startedAt: number,
-  fromDate: string,
-  toDate: string,
-): UpstreamEnvelope {
-  // Railway proxy returns the DataTables payload directly:
-  //   { sEcho, iTotalRecords, iTotalDisplayRecords, aaData: [...] }
-  // Some deployments may already wrap it in `{ data: {...} }` — handle both.
-  const obj = (raw && typeof raw === "object") ? (raw as Record<string, unknown>) : {};
-  const inner =
-    "aaData" in obj
-      ? (obj as UpstreamEnvelope["data"])
-      : ((obj["data"] as UpstreamEnvelope["data"] | undefined) ?? { aaData: [] });
-
-  return {
-    success: true,
-    name: "Zone SMS Railway Proxy",
-    version: "1.0",
-    type,
-    fromDate,
-    toDate,
-    data: inner,
-    responseTimeMs: Date.now() - startedAt,
-    fetchedAt: new Date().toISOString(),
-  };
+export interface UpstreamNumbersResponse {
+  success: boolean;
+  api: string;
+  version: string;
+  type: "numbers";
+  total: number;
+  ms: number;
+  fetchedAt: string;
+  records: NumberRecord[];
 }
 
-export async function fetchSms(_opts: { date1?: string; date2?: string; session?: string } = {}): Promise<UpstreamEnvelope> {
-  const start = Date.now();
-  const today = new Date().toISOString().slice(0, 10);
-  const url = `${RAILWAY_BASE_URL}/api/zone?type=sms`;
-  const raw = await getJson(url);
-  return wrapEnvelope("sms", raw, start, today, today);
+export async function fetchSms(): Promise<UpstreamSmsResponse> {
+  const url = `${API_BASE_URL}/?type=sms`;
+  const raw = await getJson(url) as UpstreamSmsResponse;
+  return raw;
 }
 
-export async function fetchNumbers(_opts: { session?: string } = {}): Promise<UpstreamEnvelope> {
-  const start = Date.now();
-  const today = new Date().toISOString().slice(0, 10);
-  const url = `${RAILWAY_BASE_URL}/api/zone?type=numbers`;
-  const raw = await getJson(url);
-  return wrapEnvelope("numbers", raw, start, today, today);
+export async function fetchNumbers(): Promise<UpstreamNumbersResponse> {
+  const url = `${API_BASE_URL}/?type=numbers`;
+  const raw = await getJson(url) as UpstreamNumbersResponse;
+  return raw;
 }
 
 export function logUpstreamConfig(): void {
-  logger.info({ target: RAILWAY_BASE_URL }, "Upstream (Railway) client configured");
+  logger.info({ target: API_BASE_URL }, "Upstream (0xhawk) API configured");
 }
 
 // ─── Cached wrappers — coalesce concurrent calls + serve stale on slow upstream ───
 const CACHE_TTL_MS  = 1000;   // serve fresh within 1s — fast updates for live dashboard
 const STALE_TTL_MS  = 60000;  // serve stale up to 60s on upstream failure
 
-interface CacheEntry { at: number; data: UpstreamEnvelope; }
-const smsCache: Map<string, CacheEntry> = new Map();
-const numCache: Map<string, CacheEntry> = new Map();
-const inflight: Map<string, Promise<UpstreamEnvelope>> = new Map();
+interface CacheEntry<T> { at: number; data: T; }
+const smsCache: Map<string, CacheEntry<UpstreamSmsResponse>> = new Map();
+const numCache: Map<string, CacheEntry<UpstreamNumbersResponse>> = new Map();
+const inflight: Map<string, Promise<unknown>> = new Map();
 
-async function cached(
+async function cached<T>(
   key: string,
-  cache: Map<string, CacheEntry>,
-  loader: () => Promise<UpstreamEnvelope>,
-): Promise<UpstreamEnvelope> {
+  cache: Map<string, CacheEntry<T>>,
+  loader: () => Promise<T>,
+): Promise<T> {
   const now = Date.now();
   const hit = cache.get(key);
   if (hit && now - hit.at < CACHE_TTL_MS) return hit.data;
 
   const existing = inflight.get(key);
-  if (existing) return existing;
+  if (existing) return existing as Promise<T>;
 
   const p = (async () => {
     try {
@@ -138,13 +128,10 @@ async function cached(
   return p;
 }
 
-export async function fetchSmsCached(opts: { date1?: string; date2?: string; session?: string } = {}): Promise<UpstreamEnvelope> {
-  const today = new Date().toISOString().slice(0, 10);
-  const d1 = opts.date1 || today, d2 = opts.date2 || d1, s = opts.session || "default";
-  return cached(`sms:${d1}:${d2}:${s}`, smsCache, () => fetchSms(opts));
+export async function fetchSmsCached(): Promise<UpstreamSmsResponse> {
+  return cached("sms", smsCache, () => fetchSms());
 }
 
-export async function fetchNumbersCached(opts: { session?: string } = {}): Promise<UpstreamEnvelope> {
-  const s = opts.session || "default";
-  return cached(`num:${s}`, numCache, () => fetchNumbers(opts));
+export async function fetchNumbersCached(): Promise<UpstreamNumbersResponse> {
+  return cached("numbers", numCache, () => fetchNumbers());
 }

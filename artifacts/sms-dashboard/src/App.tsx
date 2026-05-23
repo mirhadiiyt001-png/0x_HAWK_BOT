@@ -7,7 +7,7 @@ import {
 import { Toaster, toast } from "sonner";
 import "./index.css";
 
-const API_BASE     = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+const API_BASE     = "";
 const SMS_API      = `${API_BASE}/api/proxy/sms`;
 const NUMBERS_API  = `${API_BASE}/api/proxy/numbers`;
 const STATUSES_API = `${API_BASE}/api/proxy/statuses`;
@@ -561,33 +561,26 @@ export default function App() {
     try {
       const r = await fetch(SMS_API); if (!r.ok) throw new Error();
       const j = await r.json(); if (!j.success) throw new Error();
-      const aaData: unknown[][] = j.data?.aaData ?? [];
+      const records: Array<{date: string; termination: string; number: string; cli: string; currency: string; payterm: string; message: string}> = j.records ?? [];
       const parsed: SmsRow[] = [];
-      for (const row of aaData) {
-        // Railway aaData shape: [timestamp, sim/group, phone, sender(cli), body, flag?]
-        // Some panels also include extra columns (device, plan) — handle both.
-        if (!Array.isArray(row) || row.length < 5) continue;
-        const phone = String(row[2] ?? "");
-        // Body is column 4 in the Railway-proxy shape; if a longer row exists,
-        // prefer column 7 (legacy panel shape) when it looks like a real message.
-        const bodyCandidates = [row[4], row[7], row[5]];
-        const body = String(bodyCandidates.find(b => typeof b === "string" && b.trim() !== "" && b !== "0") ?? "");
+      for (const rec of records) {
+        const phone = rec.number || "";
+        const body = rec.message || "";
         if (phone === "0" || phone === "" || body === "" || body === "0") continue;
-        const apiOtpFlag = Number(row[6] ?? row[5]) === 1;
-        const isOtp = apiOtpFlag || extractOtp(body) !== null;
+        const isOtp = extractOtp(body) !== null;
         parsed.push({
-          timestamp: String(row[0] ?? ""),
-          sim:       String(row[1] ?? ""),
+          timestamp: rec.date || "",
+          sim:       rec.termination || "",
           phone,
-          device:    String(row[3] ?? ""),
-          plan:      String(row.length > 5 ? (row[5] ?? "") : ""),
+          device:    rec.cli || "",
+          plan:      rec.payterm || "",
           body,
           isOtp,
         });
       }
-      // API returns oldest-first; show newest at top.
+      // API returns newest-first already, but sort to be safe.
       parsed.sort((a, b) => (a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0));
-      setRows(parsed); setTotalSms(parseInt(String(j.data?.iTotalRecords || parsed.length)));
+      setRows(parsed); setTotalSms(j.total || parsed.length);
       setLastFetch(j.fetchedAt || new Date().toISOString()); setOnline(true);
       if (parsed.length > prevLen.current && prevLen.current > 0) {
         setNewIdx(new Set([0])); setTimeout(() => setNewIdx(new Set()), 3000);
@@ -604,22 +597,21 @@ export default function App() {
     try {
       const r = await fetch(NUMBERS_API); if (!r.ok) throw new Error();
       const j = await r.json(); if (!j.success) throw new Error();
-      const aaData: unknown[][] = j.data?.aaData ?? [];
+      const records: Array<{number: string; termination: string; status: string}> = j.records ?? [];
       const saved = await fetchServerStatuses();
       const out: NumItem[] = []; const seen = new Set<string>();
-      for (const row of aaData) {
-        if (!Array.isArray(row) || row.length < 2) continue;
-        const phone = String(row[1]);
+      for (const rec of records) {
+        const phone = rec.termination || "";
         if (seen.has(phone) || phone === "" || phone === "0") continue;
         seen.add(phone);
-        out.push({ sim: String(row[0]), phone, status: (saved[phone] as Status) || "not_tried" });
+        out.push({ sim: rec.number || "", phone, status: (saved[phone] as Status) || "not_tried" });
       }
       const cur = new Set<string>(out.map(n => n.phone));
       const added = new Set<string>();
       if (prevPhones.current.size > 0) out.forEach(n => { if (!prevPhones.current.has(n.phone)) added.add(n.phone); });
       setNewNums(added); prevPhones.current = cur;
       if (added.size > 0) setTimeout(() => setNewNums(new Set()), 3000);
-      setNums(out); setNumTotal(parseInt(String(j.data?.iTotalRecords || out.length)));
+      setNums(out); setNumTotal(j.total || out.length);
     } catch {} finally { setNumLoading(false); }
   }, []);
 

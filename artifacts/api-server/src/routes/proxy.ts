@@ -1,16 +1,15 @@
 import { Router, type IRouter } from "express";
 import { pool } from "../lib/db";
-import { fetchSmsCached as fetchSms, fetchNumbersCached as fetchNumbers } from "../lib/upstream";
+import { fetchSmsCached, fetchNumbersCached } from "../lib/upstream";
 
 const router: IRouter = Router();
 
 type Status = "not_tried" | "registered" | "unregistered" | "already_other";
 const VALID: Status[] = ["not_tried", "registered", "unregistered", "already_other"];
 
-router.get("/proxy/sms", async (req, res) => {
+router.get("/proxy/sms", async (_req, res) => {
   try {
-    const { date1, date2, session } = req.query as Record<string, string | undefined>;
-    const result = await fetchSms({ date1, date2, session });
+    const result = await fetchSmsCached();
     res.setHeader("Content-Type", "application/json");
     res.json(result);
   } catch (e) {
@@ -19,10 +18,9 @@ router.get("/proxy/sms", async (req, res) => {
   }
 });
 
-router.get("/proxy/numbers", async (req, res) => {
+router.get("/proxy/numbers", async (_req, res) => {
   try {
-    const { session } = req.query as Record<string, string | undefined>;
-    const result = await fetchNumbers({ session });
+    const result = await fetchNumbersCached();
     res.setHeader("Content-Type", "application/json");
     res.json(result);
   } catch (e) {

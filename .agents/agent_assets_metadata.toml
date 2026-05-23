@@ -1,8 +1,0 @@
-uploads = []
-generated = []
-
-[[outputs]]
-id = "54lBrX1rb9o_HOEKXqCct"
-uri = "file://attached_assets/zone-sms-source.tar.gz"
-type = "unspecified"
-title = "Zone SMS — Source Code"
