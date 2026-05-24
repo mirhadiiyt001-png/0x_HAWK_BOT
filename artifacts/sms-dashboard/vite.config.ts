@@ -8,6 +8,9 @@ import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 const port = Number(process.env.PORT ?? "3000");
 const basePath = process.env.BASE_PATH ?? "/";
 
+// API server URL: use Railway internal domain in production, localhost in dev
+const apiServerUrl = process.env.API_SERVER_URL ?? "http://localhost:5000";
+
 export default defineConfig({
   base: basePath,
   plugins: [
@@ -49,7 +52,7 @@ export default defineConfig({
       deny: ["**/.*"],
     },
     proxy: {
-      "/api": "http://localhost:5000"
+      "/api": apiServerUrl
     }
   },
   preview: {
@@ -57,7 +60,8 @@ export default defineConfig({
     host: "0.0.0.0",
     allowedHosts: true,
     proxy: {
-      "/api": "http://localhost:5000"
+      "/api": apiServerUrl
     }
   },
 });
+
