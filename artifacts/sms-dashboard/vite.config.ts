@@ -7,6 +7,7 @@ import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 // Use defaults when not running on Replit (local Windows builds)
 const port = Number(process.env.PORT ?? "3000");
 const basePath = process.env.BASE_PATH ?? "/";
+const apiServerUrl = process.env.API_SERVER_URL ?? "http://localhost:5000";
 
 export default defineConfig({
   base: basePath,
@@ -49,7 +50,7 @@ export default defineConfig({
       deny: ["**/.*"],
     },
     proxy: {
-      "/api": "http://localhost:5000"
+      "/api": apiServerUrl
     }
   },
   preview: {
@@ -57,7 +58,7 @@ export default defineConfig({
     host: "0.0.0.0",
     allowedHosts: true,
     proxy: {
-      "/api": "http://localhost:5000"
+      "/api": apiServerUrl
     }
   },
 });
